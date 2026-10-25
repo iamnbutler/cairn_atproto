@@ -377,19 +377,20 @@ def Server.createSession (s : Server) (body : String) : Server × Response :=
     | _, _ => (s, s.fail 400 "InvalidRequest" "Input must have the properties identifier and password")
   | none => (s, s.fail 400 "InvalidRequest" "Request body is not JSON")
 
-def Server.getTimeline (s : Server) (params : List (String × String)) : Server × Response :=
+/-- `getTimeline`'s answer, once its token is checked. It changes nothing. -/
+def Server.getTimeline (s : Server) (params : List (String × String)) : Response :=
   let limit := match params.lookup "limit" with
     | none => some 50
     | some v => (digits 3 v).bind fun n => if 1 ≤ n && n ≤ 100 then some n else none
   match limit with
-  | none => (s, s.fail 400 "InvalidRequest" "limit must be an integer from 1 to 100")
+  | none => s.fail 400 "InvalidRequest" "limit must be an integer from 1 to 100"
   | some n =>
     match params.lookup "cursor" with
-    | none => (s, .json 200 [] (page s.cfg s.length n none).toJson s.delayMs)
+    | none => .json 200 [] (page s.cfg s.length n none).toJson s.delayMs
     | some cur =>
       match cursorPos s.cfg s.length cur with
-      | some k => (s, .json 200 [] (page s.cfg s.length n (some k)).toJson s.delayMs)
-      | none => (s, s.fail 400 "InvalidRequest" "Malformed cursor")
+      | some k => .json 200 [] (page s.cfg s.length n (some k)).toJson s.delayMs
+      | none => s.fail 400 "InvalidRequest" "Malformed cursor"
 
 /-- An XRPC method, once the request is counted and no fault is due. -/
 def Server.xrpc (s : Server) (r : Req) (nsid : String) (params : List (String × String)) :
@@ -411,7 +412,7 @@ def Server.xrpc (s : Server) (r : Req) (nsid : String) (params : List (String ×
   else if nsid == nsidGetTimeline then
     if !get then (s, s.fail 400 "InvalidRequest" "Incorrect HTTP method")
     else match s.check "access" r.authorization with
-      | .ok s => s.getTimeline params
+      | .ok s => (s, s.getTimeline params)
       | .error e => (s, e)
   else (s, s.fail 501 "MethodNotImplemented" "Method Not Implemented")
 

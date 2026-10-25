@@ -10,6 +10,7 @@ public import CairnAtproto.Proofs.RoundTrip
 public import CairnAtproto.Proofs.Session
 public import CairnAtproto.Claims
 public import CairnAtproto.Fake
+public import CairnAtproto.Proofs.Fake
 
 /-! `cairn_atproto`: the AT Protocol for Cairn apps. XRPC (`CairnAtproto.Xrpc`), the session
 and timeline lexicons (`CairnAtproto.Lexicon`), RFC 3339 dates (`CairnAtproto.Datetime`) and
