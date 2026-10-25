@@ -137,8 +137,7 @@ def r4 := run { w0 with captures := false } init [.signIn cfg.service cfg.identi
 -- The `cairn fuzz` hook has `Custom.replies`'s type, and answers timeline URLs with pages.
 def custom : Cairn.Fuzz.Custom State :=
   { replies := replies cfg { phase := fun s => some s.phase } }
-def tlReq : Cairn.Request :=
-  .http "GET" (cfg.service ++ "/xrpc/" ++ nsidGetTimeline ++ "?limit=2") [] ByteArray.empty 30000
+def tlReq : Cairn.Request := Call.http (.getTimeline (some 2)) cfg.service
 def hookReplies : List Cairn.Reply :=
   (List.range 40).filterMap fun i =>
     ((replies cfg ({} : Hooks Unit)) () 5 tlReq).map fun g => (g.run' (Cairn.Fuzz.Rng.ofSeed i))
@@ -148,8 +147,10 @@ def hookReplies : List Cairn.Reply :=
 #guard hookReplies.all fun r => match r with
   | .http 200 _ b => ((decodeBytes b).bind FeedPage.ofJson).map (·.feed.length) == some 2
   | _ => true
--- A session reply through the hook carries no marker (capture by NSID); without capture it would.
-def csReq : Cairn.Request :=
+-- A session reply through the hook carries no marker (it captures what the request asks); without
+-- capture it would, and so would a createSession that asked for none.
+def csReq : Cairn.Request := createSession cfg.service cfg.identifier cfg.password
+def csBare : Cairn.Request :=
   .http "POST" (cfg.service ++ "/xrpc/" ++ nsidCreateSession) []
     (encode (.obj [("identifier", .str cfg.identifier), ("password", .str cfg.password)])).toUTF8 30000
 #guard (List.range 40).all fun i =>
@@ -157,6 +158,14 @@ def csReq : Cairn.Request :=
 #guard (List.range 40).any fun i =>
   (((replies cfg ({ capture := fun _ _ _ => [] } : Hooks Unit)) () 0 csReq).map fun g =>
     replyHasMarker (g.run' (Cairn.Fuzz.Rng.ofSeed i))) == some true
+#guard (List.range 40).any fun i =>
+  (((replies cfg ({} : Hooks Unit)) () 0 csBare).map fun g =>
+    replyHasMarker (g.run' (Cairn.Fuzz.Rng.ofSeed i))) == some true
+-- A request with no secret gets no token: the timeline answers 401.
+#guard (List.range 40).all fun i =>
+  (((replies cfg ({} : Hooks Unit)) () 5 (query cfg.service nsidGetTimeline)).map fun g =>
+    match g.run' (Cairn.Fuzz.Rng.ofSeed i) with
+    | .http st .. => st != 200 | _ => true) == some true
 #guard match ((replies cfg ({} : Hooks Unit)) () 0 (.loadImage (cfg.service ++ "/img/40x30/x.png") false)).map
   (fun g => g.run' (Cairn.Fuzz.Rng.ofSeed 0)) with | some (Cairn.Reply.image 40 30) => true | _ => false
 

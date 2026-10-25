@@ -7,7 +7,7 @@ public import CairnAtproto.Xrpc
 `createSession`, `refreshSession` and `getSession` answer the same account fields. Their
 `accessJwt` and `refreshJwt` are the host's: cairn#205 captures them into the Keychain items
 `access` and `refresh` and blanks them before Lean sees the body, and `SessionInfo` has no
-field for them, so no decoder here ever reads one (`SessionInfo.ofJson_blank` in
+field for them, so no decoder here ever reads one (`SessionInfo.ofJson_replaceTokens` in
 `CairnAtproto.Proofs.RoundTrip`).
 
 The account's PDS comes from its DID document: the service with id `#atproto_pds` (or
@@ -75,20 +75,19 @@ def sessionCapture : List (String × String) :=
 
 /-- `createSession`: the identifier (handle or email) and the app password, in the one request
 that ever carries the password, marked `redact`. -/
-def createSession (service identifier password : String) : Http :=
+def createSession (service identifier password : String) : Cairn.Request :=
   procedure service nsidCreateSession
     (.obj [("identifier", .str identifier), ("password", .str password)])
     (capture := sessionCapture) (redact := true)
 
 /-- `refreshSession`: authorised by the refresh token, capturing the new pair. A POST with no
 body (the procedure takes no input). -/
-def refreshSession (service : String) : Http :=
-  { method := .post, url := xrpcUrl service nsidRefreshSession [],
-    headers := [("Accept", "application/json")], secret := some { account := refreshItem },
-    capture := sessionCapture }
+def refreshSession (service : String) : Cairn.Request :=
+  .http "POST" (xrpcUrl service nsidRefreshSession []) [("Accept", "application/json")]
+    ByteArray.empty timeoutMs (some (Cairn.Secret.bearer refreshItem)) sessionCapture
 
 /-- `getSession`: authorised by the access token. -/
-def getSession (service : String) : Http :=
-  query service nsidGetSession (secret := some { account := accessItem })
+def getSession (service : String) : Cairn.Request :=
+  query service nsidGetSession (secret := some (Cairn.Secret.bearer accessItem))
 
 end CairnAtproto

@@ -82,7 +82,7 @@ def Phase.isRefreshing : Phase → Bool
   | _ => false
 
 def Out.hasSecret : Out → Bool
-  | .send _ _ h => h.secret.isSome
+  | .send _ _ r => (secretOf r).isSome
   | _ => false
 
 /-- With no session (signed out, or signing in), a step sends nothing with a Keychain secret. -/
@@ -131,7 +131,13 @@ def RetryAfterRefresh (log : List Entry) : Prop :=
 
 /-! ## No session, no secret -/
 
-theorem createSession_secret (h i p : String) : (createSession h i p).secret = none := rfl
+theorem createSession_secret (h i p : String) : secretOf (createSession h i p) = none := rfl
+
+theorem cancels_noSecret (l : List (Nat × Pending)) :
+    ∀ o ∈ l.map (fun x => Out.cancel x.1), o.hasSecret = false := by
+  intro o ho
+  obtain ⟨x, -, rfl⟩ := List.mem_map.1 ho
+  rfl
 
 theorem forgetBoth_noSecret (s : State) : ∀ o ∈ (forgetBoth s).2, o.hasSecret = false := by
   simp [forgetBoth, Out.hasSecret]
@@ -168,6 +174,7 @@ theorem step_noSecret (s : State) (i : Input) (h : s.phase.noSession = true) :
   | call id c =>
     simp only [step]
     split <;> simp_all [Phase.noSession, Out.hasSecret]
+  | cancel ids => exact cancels_noSecret _
   | signOut =>
     simp only [step]
     intro o ho
@@ -289,13 +296,19 @@ theorem sendsOf_cons (t : Nat) (e : Entry) (rest : List Entry) :
 @[simp] theorem sentIn_nil : sentIn [] = [] := rfl
 @[simp] theorem sentIn_append (a b : List Out) : sentIn (a ++ b) = sentIn a ++ sentIn b := by
   simp [sentIn, List.filterMap_append]
-@[simp] theorem sentIn_send (rid : Nat) (k : Kind) (h : Http) (os : List Out) :
+@[simp] theorem sentIn_send (rid : Nat) (k : Kind) (h : Cairn.Request) (os : List Out) :
     sentIn (.send rid k h :: os) = (rid, k) :: sentIn os := rfl
 @[simp] theorem sentIn_forget (rid : Nat) (i : String) (os : List Out) :
     sentIn (.forget rid i :: os) = sentIn os := rfl
 @[simp] theorem sentIn_answer (id : Nat) (a : Answer) (os : List Out) :
     sentIn (.answer id a :: os) = sentIn os := rfl
 @[simp] theorem sentIn_event (e : Event) (os : List Out) : sentIn (.event e :: os) = sentIn os := rfl
+@[simp] theorem sentIn_cancel (rid : Nat) (os : List Out) : sentIn (.cancel rid :: os) = sentIn os := rfl
+@[simp] theorem sentIn_cancels (l : List (Nat × Pending)) :
+    sentIn (l.map fun x => Out.cancel x.1) = [] := by
+  induction l with
+  | nil => rfl
+  | cons x l ih => simpa using ih
 @[simp] theorem sentIn_answerAll (ps : List Pending) (a : Answer) : sentIn (answerAll ps a) = [] := by
   induction ps with
   | nil => rfl
@@ -862,6 +875,20 @@ theorem Inv.of_step {s : State} {log : List Entry} (h : Inv s log) (i : Input) :
         (fun rid h1 => Or.inr ⟨h.phaseOpen rid h1, rfl⟩) h.abandoned
       · intro x hx; have := h.inflight x hx; exact ⟨this.1, by simp only; omega⟩
       · intro q hq; have := h.held q hq; exact ⟨this.1, this.2.1, by simp only; omega⟩
+  | cancel ids =>
+    simp only [step]
+    refine Inv.noCalls h (by simp) (by simp) (Nat.le_refl _) (Nat.le_refl _) ?_ ?_ ?_ (by simp)
+      (fun x hx hk _ => h.refreshes x hx hk) (fun rid h1 => Or.inr ⟨h.phaseOpen rid h1, rfl⟩)
+      h.abandoned
+    · intro x hx; exact h.inflight x (List.mem_filter.1 hx).1
+    · intro p hp; exact h.held p (List.mem_filter.1 hp).1
+    · have := h.distinct
+      rw [List.nodup_append] at this ⊢
+      refine ⟨(List.Sublist.map _ List.filter_sublist).nodup this.1,
+        (List.Sublist.map _ List.filter_sublist).nodup this.2.1, ?_⟩
+      intro a ha b hb
+      exact this.2.2 a ((List.Sublist.map _ List.filter_sublist).subset ha) b
+        ((List.Sublist.map _ List.filter_sublist).subset hb)
   | signOut =>
     simp only [step]
     refine Inv.noCalls h (by simp [forgetBoth]) (by simp [forgetBoth]) (by simp [forgetBoth])
@@ -978,6 +1005,7 @@ theorem step_sendsCall (s : State) (i : Input) {x : Nat × Kind} (hx : x ∈ sen
     simp only [step] at hx
     split at hx <;> simp [sendCall] at hx
     subst hx; simp at hk; exact Or.inl ⟨id, c, rfl, hk.symm⟩
+  | cancel ids => simp [step] at hx
   | signOut => simp [step, forgetBoth] at hx
   | reply rid r =>
     simp only [step] at hx

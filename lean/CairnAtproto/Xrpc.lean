@@ -7,12 +7,13 @@ public import CairnAtproto.Json
 
 Requests to an AT Protocol service (`<service>/xrpc/<nsid>`) and the errors it answers.
 
-* `Http`: a request as cairn#205's `Request.http` carries it: method, URL, headers, body and
-  timeout, plus the Keychain item its `Authorization` header comes from (`secret`), the reply
-  fields the host captures into Keychain items and blanks (`capture`), and whether the body
-  must stay out of every dump and log (`redact`). Lean names the items; it never holds their
-  values.
-* `query` (GET, parameters in the URL) and `procedure` (POST, a JSON body) build one.
+* Requests are Cairn's own `Request.http` (Cairn 0.3.0, cairn#205 and cairn#206): method, URL,
+  headers, body and timeout, plus the Keychain item its `Authorization` header comes from
+  (`secret`, `Secret.bearer item`), the reply fields the host captures into Keychain items and
+  blanks (`capture`), and whether it must stay out of every dump and log (`redact`). Lean names
+  the items; it never holds their values.
+* `query` (GET, parameters in the URL) and `procedure` (POST, a JSON body) build one;
+  `secretOf`, `captureOf`, `urlOf`, `methodOf` and `bodyOf` read one back.
 * `XrpcError`: an error body, `{"error": …, "message": …}`, decoded to a closed name.
 * `ratelimitReset`: the `ratelimit-reset` header, seconds since the epoch. -/
 
@@ -25,38 +26,38 @@ open CairnJson
 def accessItem : String := "access"
 def refreshItem : String := "refresh"
 
-/-- A header whose value the host reads from a Keychain item when it sends the request:
-`header: scheme ++ <item's value>`. cairn#205's `Secret` with source `keychain account`. -/
-structure KeychainSecret where
-  account : String
-  header : String := "Authorization"
-  scheme : String := "Bearer "
-deriving Repr, DecidableEq, Inhabited
+/-- How long a request may take, in milliseconds. -/
+def timeoutMs : Nat := 30000
 
-inductive Method where
-  | get | post
-deriving Repr, DecidableEq, Inhabited
+/-- The Keychain secret an `http` request's header comes from, if any. -/
+def secretOf : Cairn.Request → Option Cairn.Secret
+  | .http _ _ _ _ _ sec _ _ => sec
+  | _ => none
 
-def Method.name : Method → String
-  | .get => "GET"
-  | .post => "POST"
+/-- The Keychain item that authorises a request: its secret's account, if it is in the
+Keychain. -/
+def itemOf (r : Cairn.Request) : Option String :=
+  (secretOf r).bind fun sec => match sec.source with
+    | .keychain a => some a
+    | .env .. => none
 
-/-- An HTTP request in the shape cairn#205 gives `Request.http`. -/
-structure Http where
-  method : Method
-  url : String
-  headers : List (String × String) := []
-  /-- UTF-8 text; empty for a query. -/
-  body : String := ""
-  timeoutMs : Nat := 30000
-  /-- The `Authorization` header's item, if any. -/
-  secret : Option KeychainSecret := none
-  /-- For a 2xx JSON reply: `(field, item)` pairs the host writes to Keychain items and blanks
-  to `""` before Lean sees the body. All or nothing. -/
-  capture : List (String × String) := []
-  /-- The body holds a password: no dump, log or frame shows it. -/
-  redact : Bool := false
-deriving Repr, DecidableEq, Inhabited
+/-- The reply fields an `http` request captures into Keychain items. -/
+def captureOf : Cairn.Request → List (String × String)
+  | .http _ _ _ _ _ _ cap _ => cap
+  | _ => []
+
+def urlOf : Cairn.Request → String
+  | .http _ url .. => url
+  | _ => ""
+
+def methodOf : Cairn.Request → String
+  | .http m .. => m
+  | _ => ""
+
+/-- An `http` request's body, as text (`""` if it isn't UTF-8). -/
+def bodyOf : Cairn.Request → String
+  | .http _ _ _ b .. => (String.fromUTF8? b).getD ""
+  | _ => ""
 
 /-! ## URLs -/
 
@@ -88,16 +89,16 @@ def xrpcUrl (service nsid : String) (params : List (String × String)) : String 
 
 /-- A query: GET, parameters in the URL. -/
 def query (service nsid : String) (params : List (String × String) := [])
-    (secret : Option KeychainSecret := none) : Http :=
-  { method := .get, url := xrpcUrl service nsid params,
-    headers := [("Accept", "application/json")], secret }
+    (secret : Option Cairn.Secret := none) : Cairn.Request :=
+  .http "GET" (xrpcUrl service nsid params) [("Accept", "application/json")] ByteArray.empty
+    timeoutMs secret
 
 /-- A procedure: POST with a JSON body. -/
-def procedure (service nsid : String) (body : Json) (secret : Option KeychainSecret := none)
-    (capture : List (String × String) := []) (redact : Bool := false) : Http :=
-  { method := .post, url := xrpcUrl service nsid [],
-    headers := [("Accept", "application/json"), ("Content-Type", "application/json")],
-    body := encode body, secret, capture, redact }
+def procedure (service nsid : String) (body : Json) (secret : Option Cairn.Secret := none)
+    (capture : List (String × String) := []) (redact : Bool := false) : Cairn.Request :=
+  .http "POST" (xrpcUrl service nsid [])
+    [("Accept", "application/json"), ("Content-Type", "application/json")]
+    (encode body).toUTF8 timeoutMs secret capture redact
 
 /-! ## Errors -/
 

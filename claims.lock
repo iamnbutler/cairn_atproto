@@ -4,9 +4,15 @@
 2	move	active	69164f12fcd052a1	Resume
 3	move	active	e3cc3d58282c5ba0	Make a call
 4	move	active	8a6a00636c653dbf	Sign out
-5	invariant	active	b11a3d2d0c21c234	One refresh at a time
-6	invariant	active	f3ecaf84040e5865	A call is sent at most twice
-7	invariant	active	ff581c2c33688c4c	A second send only after a successful refresh
-8	invariant	active	aca7b74513e33d03	Signed out, no secret is sent
+5	invariant	retired	b11a3d2d0c21c234	One refresh at a time
+6	invariant	retired	f3ecaf84040e5865	A call is sent at most twice
+7	invariant	retired	ff581c2c33688c4c	A second send only after a successful refresh
+8	invariant	retired	aca7b74513e33d03	Signed out, no secret is sent
 9	invariant	active	9a629943fb122b70	A failed refresh ends the held calls
-10	assume	active	-	No Lean value holds a token
+10	assume	retired	-	No Lean value holds a token
+11	invariant	active	a3c2854f5f4bc7b5	One refresh at a time
+12	invariant	active	ff694fa6936bdf5c	A call is sent at most twice
+13	invariant	active	8410c4bfd6c4507b	A second send only after a successful refresh
+14	invariant	active	497edb490a99ed9d	Signed out, no secret is sent
+15	assume	active	-	No Lean value holds a token
+16	move	active	8f699fb531da42aa	Cancel a call

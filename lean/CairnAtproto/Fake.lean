@@ -571,24 +571,31 @@ def World.put (w : World) (kv : String × String) : World :=
 def World.generation (w : World) (item : String) : Option Nat :=
   (w.items.lookup item).bind fun t => (parseToken w.server.cfg t).map (·.2)
 
-/-- The host sends `h` and hands Lean the reply. With `lose`, the server handles the request but
-its reply never comes back (`failed timeout`): a rotation the host never captures. -/
-def World.send (w : World) (h : Http) (lose : Bool := false) : World × Cairn.Reply :=
-  let auth : Except Cairn.Reply (Option String) := match h.secret with
-    | none => .ok none
-    | some sec => match w.items.lookup sec.account with
-      | none => .error (.failed .notFound s!"No Keychain item {sec.account}.")
-      | some v => .ok (some (sec.scheme ++ v))
-  match auth with
-  | .error r => (w, r)
-  | .ok auth =>
-    let (srv, resp) := w.server.handle
-      { method := h.method.name, path := pathOf h.url, authorization := auth, body := h.body }
-    let w := { w with server := srv }
-    if lose then (w, .failed .timeout "The request timed out.")
-    else
-      let (items, reply) := hostReply (if w.captures then h.capture else []) resp
-      (items.foldl World.put w, reply)
+/-- The host sends `r` (an `http` request; anything else is `failed invalid`) and hands Lean the
+reply. With `lose`, the server handles the request but its reply never comes back (`failed
+timeout`): a rotation the host never captures. -/
+def World.send (w : World) (r : Cairn.Request) (lose : Bool := false) : World × Cairn.Reply :=
+  match r with
+  | .http method url _ body _ secret capture _ =>
+    let auth : Except Cairn.Reply (Option String) := match secret with
+      | none => .ok none
+      | some sec => match sec.source with
+        | .keychain a => match w.items.lookup a with
+          | none => .error (.failed .notFound s!"No Keychain item {a}.")
+          | some v => .ok (some (sec.scheme ++ v))
+        | .env .. => .error (.failed .notFound "No environment secret.")
+    match auth with
+    | .error rep => (w, rep)
+    | .ok auth =>
+      let (srv, resp) := w.server.handle
+        { method, path := pathOf url, authorization := auth,
+          body := (String.fromUTF8? body).getD "" }
+      let w := { w with server := srv }
+      if lose then (w, .failed .timeout "The request timed out.")
+      else
+        let (items, reply) := hostReply (if w.captures then capture else []) resp
+        (items.foldl World.put w, reply)
+  | _ => (w, .failed .invalid "not an http request")
 
 /-! ## Markers -/
 
@@ -623,8 +630,11 @@ so each reply is what `Server.handle` answers in a state drawn at random that fi
 * the Keychain from the session's phase (`Hooks.phase`): items held while signed in or
   refreshing, maybe at launch, not when signed out; a missing item answers `failed notFound`;
 * a fault one time in eight (500, 503, 429, a timeout or a network failure);
-* capture by `Hooks.capture` (cairn#205's `capture`, which Cairn 0.2.5's `Request.http` can't
-  carry): tokens are markers, so a reply whose request didn't capture them hands Lean a marker.
+* the token the request names: its `secret`'s Keychain item (`access` or `refresh`), none
+  without one;
+* capture as the request asks (`Request.http`'s `capture`, cairn#205), unless `Hooks.capture`
+  says otherwise: tokens are markers, so a reply whose request didn't capture them hands Lean a
+  marker.
 
 Image URLs on the fake (`/img/<w>x<h>/…`) are answered with their size. -/
 
@@ -640,19 +650,12 @@ def originOf (url : String) : String :=
   | (scheme, some rest) => scheme ++ "://" ++ (splitFirst rest "/").1
   | (u, none) => u
 
-/-- `createSession` and `refreshSession` capture both tokens, as the session asks. -/
-def captureByNsid (url : String) : List (String × String) :=
-  let n := nsidOf url
-  if n == nsidCreateSession || n == nsidRefreshSession then sessionCapture else []
-
 structure Hooks (S : Type) where
   /-- The session's phase in the app's state, for which Keychain items the host holds. -/
   phase : S → Option Session.Phase := fun _ => none
-  /-- The fields the host captures for request `id`. -/
-  capture : S → Nat → Cairn.Request → List (String × String) := fun _ _ r =>
-    match r with
-    | .http _ url .. => captureByNsid url
-    | _ => []
+  /-- The fields the host captures for request `id`: by default what the request asks
+  (`captureOf`). Only a check that a leak is caught (capture off) changes it. -/
+  capture : S → Nat → Cairn.Request → List (String × String) := fun _ _ r => captureOf r
 
 /-- Whether the host holds the session's items in this phase (`none`: maybe). -/
 def held : Option Session.Phase → Option Bool
@@ -676,12 +679,12 @@ def replies {S : Type} (cfg : Config) (hooks : Hooks S := {}) :
     if (pathOf src).startsWith "/img/" then
       (imageSize (splitFirst (pathOf src) "?").1).map fun (w, h) => pure (.image w h)
     else none
-  | st, id, r@(.http method url _ body _) => some do
+  | st, id, r@(.http method url _ body ..) => some do
     let c := { cfg with service := originOf url }
     if ← Gen.chance 1 8 then return ← faultReply c id
-    let nsid := nsidOf url
-    let kind := if nsid == nsidRefreshSession then "refresh" else "access"
-    let authed := nsid == nsidRefreshSession || nsid == nsidGetSession || nsid == nsidGetTimeline
+    let item := itemOf r
+    let kind := if item == some refreshItem then "refresh" else "access"
+    let authed := item.isSome
     let maybe ← Gen.bool
     let holds := (held (hooks.phase st)).getD maybe
     if authed && !holds then return .failed .notFound s!"No Keychain item {kind}."
