@@ -1,0 +1,21 @@
+{
+ "accessJwt": "",
+ "refreshJwt": "",
+ "did": "did:plc:bob",
+ "handle": "bob.example.com",
+ "didDoc": {
+  "id": "did:plc:bob",
+  "service": [
+   {
+    "id": "did:plc:bob#atproto_labeler",
+    "type": "AtprotoLabeler",
+    "serviceEndpoint": "https://l.example.com"
+   },
+   {
+    "id": "did:plc:bob#atproto_pds",
+    "type": "AtprotoPersonalDataServer",
+    "serviceEndpoint": "https://pds2.example.com/"
+   }
+  ]
+ }
+}
