@@ -1,0 +1,6 @@
+{
+ "did": "did:plc:carol",
+ "handle": "carol.example.com",
+ "active": false,
+ "status": "deactivated"
+}

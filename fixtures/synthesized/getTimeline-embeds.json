@@ -1,0 +1,1380 @@
+{
+ "feed": [
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/0",
+    "cid": "bafy0",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 0 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 0,
+    "repostCount": 0,
+    "likeCount": 0,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:00:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.images#view",
+     "images": [
+      {
+       "thumb": "https://cdn.example.com/t/1",
+       "fullsize": "https://cdn.example.com/f/1",
+       "alt": "a cat",
+       "aspectRatio": {
+        "width": 1200,
+        "height": 800
+       }
+      },
+      {
+       "thumb": "https://cdn.example.com/t/2",
+       "fullsize": "https://cdn.example.com/f/2",
+       "alt": ""
+      },
+      {
+       "thumb": "https://cdn.example.com/t/1",
+       "fullsize": "https://cdn.example.com/f/1",
+       "alt": "a cat",
+       "aspectRatio": {
+        "width": 1200,
+        "height": 800
+       }
+      },
+      {
+       "thumb": "https://cdn.example.com/t/2",
+       "fullsize": "https://cdn.example.com/f/2",
+       "alt": ""
+      }
+     ]
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/1",
+    "cid": "bafy1",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 1 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 1,
+    "repostCount": 2,
+    "likeCount": 3,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:01:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.external#view",
+     "external": {
+      "uri": "https://example.com/a",
+      "title": "A page",
+      "description": "About it",
+      "thumb": "https://cdn.example.com/t/x"
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/2",
+    "cid": "bafy2",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 2 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 2,
+    "repostCount": 4,
+    "likeCount": 6,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:02:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.external#view",
+     "external": {
+      "uri": "https://example.com/b",
+      "title": "",
+      "description": ""
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/3",
+    "cid": "bafy3",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 3 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 3,
+    "repostCount": 6,
+    "likeCount": 9,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:03:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.video#view",
+     "cid": "bafyvideo",
+     "playlist": "https://video.example.com/p.m3u8",
+     "thumbnail": "https://video.example.com/t.jpg"
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/4",
+    "cid": "bafy4",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 4 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 4,
+    "repostCount": 8,
+    "likeCount": 12,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:04:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.somethingNew#view",
+     "x": 1
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/5",
+    "cid": "bafy5",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 5 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 5,
+    "repostCount": 10,
+    "likeCount": 15,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:05:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.record#view",
+     "record": {
+      "$type": "app.bsky.embed.record#viewRecord",
+      "uri": "at://did:plc:quoted/app.bsky.feed.post/1",
+      "cid": "bafyq",
+      "author": {
+       "did": "did:plc:quoted",
+       "handle": "quoted.example.com",
+       "displayName": "Quoted",
+       "avatar": "https://cdn.example.com/avatar/quoted",
+       "labels": [],
+       "createdAt": "2024-01-01T00:00:00.000Z",
+       "associated": {
+        "chat": {
+         "allowIncoming": "all"
+        }
+       }
+      },
+      "value": {
+       "$type": "app.bsky.feed.post",
+       "text": "quoted text",
+       "createdAt": "2026-09-30T23:59:59.5+02:00",
+       "langs": [
+        "en"
+       ]
+      },
+      "indexedAt": "2026-09-30T22:00:00.000Z",
+      "likeCount": 3,
+      "embeds": [
+       {
+        "$type": "app.bsky.embed.images#view",
+        "images": [
+         {
+          "thumb": "https://cdn.example.com/t/1",
+          "fullsize": "https://cdn.example.com/f/1",
+          "alt": "a cat",
+          "aspectRatio": {
+           "width": 1200,
+           "height": 800
+          }
+         },
+         {
+          "thumb": "https://cdn.example.com/t/2",
+          "fullsize": "https://cdn.example.com/f/2",
+          "alt": ""
+         },
+         {
+          "thumb": "https://cdn.example.com/t/1",
+          "fullsize": "https://cdn.example.com/f/1",
+          "alt": "a cat",
+          "aspectRatio": {
+           "width": 1200,
+           "height": 800
+          }
+         },
+         {
+          "thumb": "https://cdn.example.com/t/2",
+          "fullsize": "https://cdn.example.com/f/2",
+          "alt": ""
+         }
+        ]
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/6",
+    "cid": "bafy6",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 6 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 6,
+    "repostCount": 12,
+    "likeCount": 18,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:06:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.record#view",
+     "record": {
+      "$type": "app.bsky.embed.record#viewNotFound",
+      "uri": "at://did:plc:gone/app.bsky.feed.post/2",
+      "notFound": true
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/7",
+    "cid": "bafy7",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 7 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 7,
+    "repostCount": 14,
+    "likeCount": 21,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:07:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.record#view",
+     "record": {
+      "$type": "app.bsky.embed.record#viewBlocked",
+      "uri": "at://did:plc:blk/app.bsky.feed.post/3",
+      "blocked": true,
+      "author": {
+       "did": "did:plc:blk"
+      }
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/8",
+    "cid": "bafy8",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 8 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 8,
+    "repostCount": 16,
+    "likeCount": 24,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:08:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.record#view",
+     "record": {
+      "$type": "app.bsky.embed.record#viewDetached",
+      "uri": "at://did:plc:det/app.bsky.feed.post/4",
+      "detached": true
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/9",
+    "cid": "bafy9",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 9 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 9,
+    "repostCount": 18,
+    "likeCount": 27,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:09:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.record#view",
+     "record": {
+      "$type": "app.bsky.feed.defs#generatorView",
+      "uri": "at://did:plc:gen/app.bsky.feed.generator/x",
+      "cid": "bafyg",
+      "did": "did:web:feed.example.com",
+      "creator": {
+       "did": "did:plc:gen",
+       "handle": "gen.example.com",
+       "displayName": "Gen",
+       "avatar": "https://cdn.example.com/avatar/gen",
+       "labels": [],
+       "createdAt": "2024-01-01T00:00:00.000Z",
+       "associated": {
+        "chat": {
+         "allowIncoming": "all"
+        }
+       }
+      },
+      "displayName": "A feed",
+      "indexedAt": "2026-01-01T00:00:00Z"
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/10",
+    "cid": "bafy10",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 10 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 10,
+    "repostCount": 20,
+    "likeCount": 30,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:10:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.recordWithMedia#view",
+     "record": {
+      "record": {
+       "$type": "app.bsky.embed.record#viewRecord",
+       "uri": "at://did:plc:quoted/app.bsky.feed.post/1",
+       "cid": "bafyq",
+       "author": {
+        "did": "did:plc:quoted",
+        "handle": "quoted.example.com",
+        "displayName": "Quoted",
+        "avatar": "https://cdn.example.com/avatar/quoted",
+        "labels": [],
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "associated": {
+         "chat": {
+          "allowIncoming": "all"
+         }
+        }
+       },
+       "value": {
+        "$type": "app.bsky.feed.post",
+        "text": "quoted text",
+        "createdAt": "2026-09-30T23:59:59.5+02:00",
+        "langs": [
+         "en"
+        ]
+       },
+       "indexedAt": "2026-09-30T22:00:00.000Z",
+       "likeCount": 3,
+       "embeds": [
+        {
+         "$type": "app.bsky.embed.images#view",
+         "images": [
+          {
+           "thumb": "https://cdn.example.com/t/1",
+           "fullsize": "https://cdn.example.com/f/1",
+           "alt": "a cat",
+           "aspectRatio": {
+            "width": 1200,
+            "height": 800
+           }
+          },
+          {
+           "thumb": "https://cdn.example.com/t/2",
+           "fullsize": "https://cdn.example.com/f/2",
+           "alt": ""
+          },
+          {
+           "thumb": "https://cdn.example.com/t/1",
+           "fullsize": "https://cdn.example.com/f/1",
+           "alt": "a cat",
+           "aspectRatio": {
+            "width": 1200,
+            "height": 800
+           }
+          },
+          {
+           "thumb": "https://cdn.example.com/t/2",
+           "fullsize": "https://cdn.example.com/f/2",
+           "alt": ""
+          }
+         ]
+        }
+       ]
+      }
+     },
+     "media": {
+      "$type": "app.bsky.embed.images#view",
+      "images": [
+       {
+        "thumb": "https://cdn.example.com/t/1",
+        "fullsize": "https://cdn.example.com/f/1",
+        "alt": "a cat",
+        "aspectRatio": {
+         "width": 1200,
+         "height": 800
+        }
+       },
+       {
+        "thumb": "https://cdn.example.com/t/2",
+        "fullsize": "https://cdn.example.com/f/2",
+        "alt": ""
+       },
+       {
+        "thumb": "https://cdn.example.com/t/1",
+        "fullsize": "https://cdn.example.com/f/1",
+        "alt": "a cat",
+        "aspectRatio": {
+         "width": 1200,
+         "height": 800
+        }
+       },
+       {
+        "thumb": "https://cdn.example.com/t/2",
+        "fullsize": "https://cdn.example.com/f/2",
+        "alt": ""
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/11",
+    "cid": "bafy11",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 11 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 11,
+    "repostCount": 22,
+    "likeCount": 33,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:11:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.recordWithMedia#view",
+     "record": {
+      "record": {
+       "$type": "app.bsky.embed.record#viewRecord",
+       "uri": "at://did:plc:quoted/app.bsky.feed.post/1",
+       "cid": "bafyq",
+       "author": {
+        "did": "did:plc:quoted",
+        "handle": "quoted.example.com",
+        "displayName": "Quoted",
+        "avatar": "https://cdn.example.com/avatar/quoted",
+        "labels": [],
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "associated": {
+         "chat": {
+          "allowIncoming": "all"
+         }
+        }
+       },
+       "value": {
+        "$type": "app.bsky.feed.post",
+        "text": "quoted text",
+        "createdAt": "2026-09-30T23:59:59.5+02:00",
+        "langs": [
+         "en"
+        ]
+       },
+       "indexedAt": "2026-09-30T22:00:00.000Z",
+       "likeCount": 3,
+       "embeds": [
+        {
+         "$type": "app.bsky.embed.images#view",
+         "images": [
+          {
+           "thumb": "https://cdn.example.com/t/1",
+           "fullsize": "https://cdn.example.com/f/1",
+           "alt": "a cat",
+           "aspectRatio": {
+            "width": 1200,
+            "height": 800
+           }
+          },
+          {
+           "thumb": "https://cdn.example.com/t/2",
+           "fullsize": "https://cdn.example.com/f/2",
+           "alt": ""
+          },
+          {
+           "thumb": "https://cdn.example.com/t/1",
+           "fullsize": "https://cdn.example.com/f/1",
+           "alt": "a cat",
+           "aspectRatio": {
+            "width": 1200,
+            "height": 800
+           }
+          },
+          {
+           "thumb": "https://cdn.example.com/t/2",
+           "fullsize": "https://cdn.example.com/f/2",
+           "alt": ""
+          }
+         ]
+        }
+       ]
+      }
+     },
+     "media": {
+      "$type": "app.bsky.embed.external#view",
+      "external": {
+       "uri": "https://example.com/a",
+       "title": "A page",
+       "description": "About it",
+       "thumb": "https://cdn.example.com/t/x"
+      }
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/12",
+    "cid": "bafy12",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 12 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 12,
+    "repostCount": 24,
+    "likeCount": 36,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:12:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.recordWithMedia#view",
+     "record": {
+      "record": {
+       "$type": "app.bsky.embed.record#viewRecord",
+       "uri": "at://did:plc:quoted/app.bsky.feed.post/1",
+       "cid": "bafyq",
+       "author": {
+        "did": "did:plc:quoted",
+        "handle": "quoted.example.com",
+        "displayName": "Quoted",
+        "avatar": "https://cdn.example.com/avatar/quoted",
+        "labels": [],
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "associated": {
+         "chat": {
+          "allowIncoming": "all"
+         }
+        }
+       },
+       "value": {
+        "$type": "app.bsky.feed.post",
+        "text": "quoted text",
+        "createdAt": "2026-09-30T23:59:59.5+02:00",
+        "langs": [
+         "en"
+        ]
+       },
+       "indexedAt": "2026-09-30T22:00:00.000Z",
+       "likeCount": 3,
+       "embeds": [
+        {
+         "$type": "app.bsky.embed.images#view",
+         "images": [
+          {
+           "thumb": "https://cdn.example.com/t/1",
+           "fullsize": "https://cdn.example.com/f/1",
+           "alt": "a cat",
+           "aspectRatio": {
+            "width": 1200,
+            "height": 800
+           }
+          },
+          {
+           "thumb": "https://cdn.example.com/t/2",
+           "fullsize": "https://cdn.example.com/f/2",
+           "alt": ""
+          },
+          {
+           "thumb": "https://cdn.example.com/t/1",
+           "fullsize": "https://cdn.example.com/f/1",
+           "alt": "a cat",
+           "aspectRatio": {
+            "width": 1200,
+            "height": 800
+           }
+          },
+          {
+           "thumb": "https://cdn.example.com/t/2",
+           "fullsize": "https://cdn.example.com/f/2",
+           "alt": ""
+          }
+         ]
+        }
+       ]
+      }
+     },
+     "media": {
+      "$type": "app.bsky.embed.video#view",
+      "cid": "bafyvideo",
+      "playlist": "https://video.example.com/p.m3u8",
+      "thumbnail": "https://video.example.com/t.jpg"
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/13",
+    "cid": "bafy13",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 13 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 13,
+    "repostCount": 26,
+    "likeCount": 39,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:13:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.images#view"
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/14",
+    "cid": "bafy14",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 14 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 14,
+    "repostCount": 28,
+    "likeCount": 42,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:14:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": [],
+    "embed": {
+     "$type": "app.bsky.embed.recordWithMedia#view",
+     "media": {
+      "$type": "app.bsky.embed.images#view",
+      "images": [
+       {
+        "thumb": "https://cdn.example.com/t/1",
+        "fullsize": "https://cdn.example.com/f/1",
+        "alt": "a cat",
+        "aspectRatio": {
+         "width": 1200,
+         "height": 800
+        }
+       },
+       {
+        "thumb": "https://cdn.example.com/t/2",
+        "fullsize": "https://cdn.example.com/f/2",
+        "alt": ""
+       },
+       {
+        "thumb": "https://cdn.example.com/t/1",
+        "fullsize": "https://cdn.example.com/f/1",
+        "alt": "a cat",
+        "aspectRatio": {
+         "width": 1200,
+         "height": 800
+        }
+       },
+       {
+        "thumb": "https://cdn.example.com/t/2",
+        "fullsize": "https://cdn.example.com/f/2",
+        "alt": ""
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:bob/app.bsky.feed.post/15",
+    "cid": "bafy15",
+    "author": {
+     "did": "did:plc:bob",
+     "handle": "bob.example.com",
+     "displayName": "Bob",
+     "avatar": "https://cdn.example.com/avatar/bob",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 15 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 15,
+    "repostCount": 30,
+    "likeCount": 45,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:15:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": []
+   },
+   "reason": {
+    "$type": "app.bsky.feed.defs#reasonRepost",
+    "by": {
+     "did": "did:plc:carol",
+     "handle": "carol.example.com",
+     "displayName": "Carol",
+     "avatar": "https://cdn.example.com/avatar/carol",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "uri": "at://did:plc:carol/app.bsky.feed.repost/r",
+    "cid": "bafyr",
+    "indexedAt": "2026-10-02T00:00:00Z"
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/16",
+    "cid": "bafy16",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 16 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 16,
+    "repostCount": 32,
+    "likeCount": 48,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:16:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": []
+   },
+   "reason": {
+    "$type": "app.bsky.feed.defs#reasonPin"
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/17",
+    "cid": "bafy17",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 17 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 17,
+    "repostCount": 34,
+    "likeCount": 51,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:17:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": []
+   },
+   "reply": {
+    "root": {
+     "uri": "at://did:plc:dave/app.bsky.feed.post/90",
+     "cid": "bafy90",
+     "author": {
+      "did": "did:plc:dave",
+      "handle": "dave.example.com",
+      "displayName": "Dave",
+      "avatar": "https://cdn.example.com/avatar/dave",
+      "labels": [],
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "associated": {
+       "chat": {
+        "allowIncoming": "all"
+       }
+      }
+     },
+     "record": {
+      "$type": "app.bsky.feed.post",
+      "text": "post 90 — ünïcode 🦋\nsecond line",
+      "createdAt": "2026-10-01T12:00:00.000Z",
+      "langs": [
+       "en"
+      ]
+     },
+     "replyCount": 90,
+     "repostCount": 180,
+     "likeCount": 270,
+     "quoteCount": 0,
+     "bookmarkCount": 1,
+     "indexedAt": "2026-10-01T12:90:00.123Z",
+     "viewer": {
+      "bookmarked": false
+     },
+     "labels": [],
+     "$type": "app.bsky.feed.defs#postView"
+    },
+    "parent": {
+     "uri": "at://did:plc:dave/app.bsky.feed.post/90",
+     "cid": "bafy90",
+     "author": {
+      "did": "did:plc:dave",
+      "handle": "dave.example.com",
+      "displayName": "Dave",
+      "avatar": "https://cdn.example.com/avatar/dave",
+      "labels": [],
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "associated": {
+       "chat": {
+        "allowIncoming": "all"
+       }
+      }
+     },
+     "record": {
+      "$type": "app.bsky.feed.post",
+      "text": "post 90 — ünïcode 🦋\nsecond line",
+      "createdAt": "2026-10-01T12:00:00.000Z",
+      "langs": [
+       "en"
+      ]
+     },
+     "replyCount": 90,
+     "repostCount": 180,
+     "likeCount": 270,
+     "quoteCount": 0,
+     "bookmarkCount": 1,
+     "indexedAt": "2026-10-01T12:90:00.123Z",
+     "viewer": {
+      "bookmarked": false
+     },
+     "labels": [],
+     "$type": "app.bsky.feed.defs#postView"
+    },
+    "grandparentAuthor": {
+     "did": "did:plc:erin",
+     "handle": "erin.example.com",
+     "displayName": "Erin",
+     "avatar": "https://cdn.example.com/avatar/erin",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/18",
+    "cid": "bafy18",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 18 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 18,
+    "repostCount": 36,
+    "likeCount": 54,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:18:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": []
+   },
+   "reply": {
+    "root": {
+     "$type": "app.bsky.feed.defs#notFoundPost",
+     "uri": "at://x/y/1",
+     "notFound": true
+    },
+    "parent": {
+     "$type": "app.bsky.feed.defs#blockedPost",
+     "uri": "at://x/y/2",
+     "blocked": true,
+     "author": {
+      "did": "did:plc:z"
+     }
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice/app.bsky.feed.post/19",
+    "cid": "bafy19",
+    "author": {
+     "did": "did:plc:alice",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "avatar": "https://cdn.example.com/avatar/alice",
+     "labels": [],
+     "createdAt": "2024-01-01T00:00:00.000Z",
+     "associated": {
+      "chat": {
+       "allowIncoming": "all"
+      }
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 19 — ünïcode 🦋\nsecond line",
+     "createdAt": "2026-10-01T12:00:00.000Z",
+     "langs": [
+      "en"
+     ]
+    },
+    "replyCount": 19,
+    "repostCount": 38,
+    "likeCount": 57,
+    "quoteCount": 0,
+    "bookmarkCount": 1,
+    "indexedAt": "2026-10-01T12:19:00.123Z",
+    "viewer": {
+     "bookmarked": false
+    },
+    "labels": []
+   },
+   "reply": {
+    "root": {
+     "uri": "at://did:plc:dave/app.bsky.feed.post/90",
+     "cid": "bafy90",
+     "author": {
+      "did": "did:plc:dave",
+      "handle": "dave.example.com",
+      "displayName": "Dave",
+      "avatar": "https://cdn.example.com/avatar/dave",
+      "labels": [],
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "associated": {
+       "chat": {
+        "allowIncoming": "all"
+       }
+      }
+     },
+     "record": {
+      "$type": "app.bsky.feed.post",
+      "text": "post 90 — ünïcode 🦋\nsecond line",
+      "createdAt": "2026-10-01T12:00:00.000Z",
+      "langs": [
+       "en"
+      ]
+     },
+     "replyCount": 90,
+     "repostCount": 180,
+     "likeCount": 270,
+     "quoteCount": 0,
+     "bookmarkCount": 1,
+     "indexedAt": "2026-10-01T12:90:00.123Z",
+     "viewer": {
+      "bookmarked": false
+     },
+     "labels": [],
+     "$type": "app.bsky.feed.defs#postView"
+    },
+    "parent": {
+     "$type": "app.bsky.feed.defs#somethingNew"
+    }
+   },
+   "feedContext": "ctx",
+   "reqId": "r1"
+  }
+ ],
+ "cursor": "2026-10-01T12:00:00.000Z::bafy0"
+}

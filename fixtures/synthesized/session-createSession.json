@@ -1,0 +1,25 @@
+{
+ "accessJwt": "",
+ "refreshJwt": "",
+ "did": "did:plc:alice",
+ "handle": "alice.example.com",
+ "email": "alice@example.com",
+ "emailConfirmed": true,
+ "active": true,
+ "didDoc": {
+  "@context": [
+   "https://www.w3.org/ns/did/v1"
+  ],
+  "id": "did:plc:alice",
+  "alsoKnownAs": [
+   "at://alice.example.com"
+  ],
+  "service": [
+   {
+    "id": "#atproto_pds",
+    "type": "AtprotoPersonalDataServer",
+    "serviceEndpoint": "https://pds.example.com"
+   }
+  ]
+ }
+}
