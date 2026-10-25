@@ -1,5 +1,6 @@
 # make check on Ubuntu (Lean only: no Swift, no host), building against the registry as a person
 # would: Lake fetches Cairn and cairn_json from https://cairn.registry.nexthub.sh. No secrets.
+# Bun runs the fake PDS (tools/fake-pds/) on 127.0.0.1 for the replay; nothing leaves the runner.
 name: check
 
 on:
@@ -23,6 +24,11 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Bun (the fake PDS's server and replay)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Cache Lean builds
         uses: actions/cache@v4

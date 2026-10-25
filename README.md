@@ -14,7 +14,7 @@ responses or synthesized.
 
 ```lean
 -- lean/lakefile.lean, after `cairn add cairn_atproto`
-require "iamnbutler" / "cairn_atproto" @ "^0.1.0"
+require "iamnbutler" / "cairn_atproto" @ "^0.1.1"
 
 import CairnAtproto
 open CairnAtproto CairnAtproto.Session
@@ -127,7 +127,7 @@ sequence of inputs from any app, not only the harness's.
 | `cairn_atproto^7` | invariant | a call already sent is sent again only in the step a refresh in flight gets a 2xx session (`RetryAfterRefresh`) |
 | `cairn_atproto^8` | invariant | signed out or signing in, no request carrying a Keychain secret is issued (`NoSecretSignedOut`) |
 | `cairn_atproto^9` | invariant | a failed refresh answers every held call in that step; a refused one also forgets both items and answers them `signedOut`; calls are held only while a refresh is in flight (`RefusalEndsAll`) |
-| `cairn_atproto^10` | assume | no Lean value holds a token. By construction (no type has a token field) and `SessionInfo.ofJson_replaceTokens` (the decoder reads the same account whatever `accessJwt` and `refreshJwt` hold); check `atproto.no-token` is for cairn#208's fuzz |
+| `cairn_atproto^10` | assume | no Lean value holds a token. By construction (no type has a token field) and `SessionInfo.ofJson_replaceTokens` (the decoder reads the same account whatever `accessJwt` and `refreshJwt` hold); its check `atproto.no-token` is `make fake-fuzz` (below, "The fake PDS") |
 
 The bookkeeping invariant `Inv` behind ^5–^7 relates the state to the log: request ids are
 fresh, tickets are distinct, each pending call has been sent `tries` times (a held one at most
@@ -176,6 +176,81 @@ against `fixtures/expected.txt`, and checks every date it parsed against Python'
 Build-time tests (`#guard`, in `CairnAtprotoTests`) cover URLs, errors, `Outcome.ofReply`, dates
 and session scenarios.
 
+## The fake PDS
+
+Two fakes of a PDS with the same behaviour, so nothing needs the real network to be tested
+(cairn#208): a Lean model, `CairnAtproto.Fake`, and a local server, `tools/fake-pds/` (Bun).
+`make fake-pds-replay` replays random sequences of calls against both and compares every answer
+(status, error, body with its cursor and page items, rate-limit headers, delays, timeouts, image
+sizes). Neither holds a real credential or talks to the network.
+
+| | |
+|---|---|
+| Timeline | grows only at its head: post `k` (from the oldest) is `postAt cfg k`, a function of the seed and `k`; 1–3 posts arrive after an XRPC request with chance `1/arrival`, or on `POST /control/post?n=` |
+| `getTimeline` | `limit` 1–100 (default 50), newest first; `cursor` is opaque (`<createdAt>::<cid>` of the page's oldest post), absent at the end, and stays valid as posts arrive; a bad one is 400 `InvalidRequest` |
+| `createSession` | one identifier and app password, from the seed (`Config.identifier`, `Config.password`); otherwise 401 `AuthenticationRequired` |
+| Tokens | a generation per sign-in or refresh. The access token serves 1 to `life` calls, then 400 `ExpiredToken`; `refreshSession` rotates both and refuses the old refresh token (400 `InvalidToken`). A token is a marker, `fakepds-token.<kind>.<gen>.<nonce>` |
+| Faults | `POST /control/fail?n=&kind=500\|503\|429\|timeout` (the next `n` calls), `/control/slow?ms=`, `/control/expire`, `/control/revoke`; `GET /control/state` |
+| Images | `GET /img/<w>x<h>/<name>.png`: a PNG of that size (avatars and embeds point here) |
+| Other methods | 501 `MethodNotImplemented` (`getAuthorFeed` too, for now) |
+
+What is proved (`CairnAtproto.Proofs.Fake`): a request keeps the configuration and never
+shortens the timeline (`Server.handle_cfg`, `Server.handle_length`), so the timeline after it
+extends the one before at its head (`Server.handle_timeline`, with `timeline_extends`); a page is
+a contiguous run of the timeline (`page_feed`, `page_head`).
+
+**In Lean.** `Fake.Server.handle` answers a request; `Fake.World` adds the host: the Keychain
+(which token each item holds, `World.generation`) and cairn#205's capture (a 2xx JSON object, all
+or nothing, the fields blanked before Lean sees the body), so `World.send` takes the session
+machine's `Http` and gives the `Cairn.Reply` Lean receives. `lake exe fake-pds-model` is the
+model over JSON lines, for the replay.
+
+**In `cairn fuzz`.** `Fake.replies cfg hooks` has the type of `Cairn.Fuzz.Custom.replies`:
+
+```lean
+def fuzz : Cairn.Fuzz.Custom State where
+  replies := CairnAtproto.Fake.replies {} { phase := fun s => some s.session.phase }
+```
+
+Cairn's hook keeps no state between replies, so each reply is what `Server.handle` answers in a
+state drawn at random that fits the request: the timeline as it stands at request `id`
+(`Fake.timeline cfg (cfg.base + arrivedBefore cfg (id + 1))`, growing at the head as ids grow,
+so a claim can be stated against it), the access token expired with chance `1/life`, a refresh
+refused one time in ten, a missing Keychain item (`failed notFound`) by the session's phase, and a
+500, 503, 429, timeout or network failure one time in eight. `Hooks.capture` says what the host
+captures for a request (Cairn 0.2.5's `Request.http` can't carry it; by default
+`createSession` and `refreshSession` capture both tokens), and `replyHasMarker` finds a token
+that wasn't captured. Images on the fake are answered with their size.
+
+**`atproto.no-token`** (`make fake-fuzz`, in `make check`; claim `^10`'s check): the session
+machine against `Fake.World` in random sequences (sign-ins with right and wrong passwords,
+resumes, calls, sign-outs; replies in any order, lost after the server handled them, or failed
+before it; posts arriving, tokens expiring and revoked, faults), searching after every step the
+reply handed to Lean, the session's state and everything it put out for a token marker. It then
+runs the same sequences with the host's capture off, which must find markers, and decodes every
+page. The report is `build/fake-fuzz.json`.
+
+### Running Sky against the fake PDS
+
+```sh
+make fake-pds                         # = bun tools/fake-pds/server.ts (port 2583; --port, --seed)
+# fake-pds listening on http://127.0.0.1:2583
+# seed 1234…
+# identifier tester-abcd.fake.test
+# app password abcd-efgh-ijkl-mnop
+defaults write <Sky's bundle id> service http://127.0.0.1:2583
+```
+
+Sky reads `service` with `readDefault`; sign in on its sign-in screen with the printed identifier
+and app password. `curl -X POST 'http://127.0.0.1:2583/control/fail?n=3&kind=timeout'` and the
+other control endpoints drive it from outside. `defaults delete <Sky's bundle id> service` and
+the same build talks to the real network again. Stop the server with Ctrl-C.
+
+**Real credentials go only into the running app's sign-in screen**: never into a file, fixture,
+test, log, script or command line, in this repository or any other. The fake's identifier,
+password and tokens are generated and fake; its log shows paths and statuses, never a token or a
+`createSession` body.
+
 ## cairn#205
 
 This release depends on Cairn 0.2.5, whose `Request.http` has no secrets, so `Http` is this
@@ -187,6 +262,7 @@ on the registry.
 
 ## Building
 
-`make build`, `make check` (lint, build, axiom audit, ledger, kernel replay, fixtures).
+`make build`, `make check` (lint, build, axiom audit, ledger, kernel replay, fixtures, the
+no-token fuzz and the fake PDS replay; the replay needs [Bun](https://bun.sh)).
 `lake update` needs `RESERVOIR_API_URL=https://cairn.registry.nexthub.sh/api/v1` (the Makefile
 sets it). CI runs `make check` on Ubuntu against the registry.
