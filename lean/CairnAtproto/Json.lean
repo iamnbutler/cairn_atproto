@@ -31,11 +31,13 @@ def Json.nat? (j : Json) (k : String) : Option Nat := (j.field k).bind Json.asNa
 def Json.bool? (j : Json) (k : String) : Option Bool := (j.field k).bind Json.getBool
 def Json.arr? (j : Json) (k : String) : Option (List Json) := (j.field k).bind Json.getArr
 
-/-- Member `k` when it is an object (as a `Json`, for further reading). -/
-def Json.obj? (j : Json) (k : String) : Option Json :=
-  match j.field k with
-  | some (.obj kvs) => some (.obj kvs)
+/-- An object, as it is. -/
+def Json.asObj : Json → Option Json
+  | .obj kvs => some (.obj kvs)
   | _ => none
+
+/-- Member `k` when it is an object (as a `Json`, for further reading). -/
+def Json.obj? (j : Json) (k : String) : Option Json := (j.field k).bind Json.asObj
 
 /-- The `$type` of a lexicon object, `""` when it has none. -/
 def Json.type (j : Json) : String := (j.str? "$type").getD ""

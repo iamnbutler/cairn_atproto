@@ -18,3 +18,8 @@ lean_exe fixtures where
 /-- Build-time examples (`#guard`). Never linked. -/
 lean_lib CairnAtprotoTests where
   roots := #[`CairnAtprotoTests]
+
+/-- Proofs that need `CairnJsonProofs` (not a `module`, so the claims can't import them): the
+depth bounds and the text-level round trips. Never linked. -/
+lean_lib CairnAtprotoProofs where
+  roots := #[`CairnAtprotoProofs]
