@@ -2,3 +2,4 @@
 .build/
 .cairn/
 build/
+.DS_Store
