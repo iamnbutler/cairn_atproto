@@ -1,0 +1,10 @@
+[package]
+name = "cairn_atproto"
+version = "0.1.0"
+kind = "lib"
+license = "MIT"
+libs = ["CairnAtproto"]
+
+[dependencies]
+cairn = "^0.2.5"
+cairn_json = "^0.1.0"
