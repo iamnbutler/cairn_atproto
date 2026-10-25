@@ -1,11 +1,11 @@
 [package]
 name = "cairn_atproto"
-version = "0.1.1"
+version = "0.2.0"
 kind = "lib"
 description = "The AT Protocol (Bluesky) for Cairn apps: XRPC, lexicon decoders and a proved session machine"
 license = "MIT"
 libs = ["CairnAtproto"]
 
 [dependencies]
-cairn = "^0.2.5"
+cairn = "^0.3.0"
 cairn_json = "^0.1.0"

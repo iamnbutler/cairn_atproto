@@ -2,11 +2,12 @@ import CairnAtproto
 
 /-! `lake exe fake-fuzz [--sequences N] [--steps K] [--seed S] [--out FILE]`: the session machine
 (`CairnAtproto.Session`) run against the fake PDS and its host (`CairnAtproto.Fake.World`), in
-random sequences: sign-ins (right and wrong passwords), resumes, calls, sign-outs; replies in any
-order, lost after the server handled them, or failed before it saw them; posts arriving, tokens
-expiring and revoked, faults and delays.
+random sequences: sign-ins (right and wrong passwords), resumes, calls, cancels, sign-outs;
+replies in any order, lost after the server handled them, or failed before it saw them; posts
+arriving, tokens expiring and revoked, faults and delays. Requests are Cairn's `Request.http`, and
+the host (`World.send`) attaches each one's Keychain secret and captures what it asks.
 
-It is the check `atproto.no-token` of `cairn_atproto^10` ("No Lean value holds a token"). Every
+It is the check `atproto.no-token` of `cairn_atproto^15` ("No Lean value holds a token"). Every
 token the fake issues is a marker string, and after every step it searches every Lean value the
 step touched for one: the reply handed to the session, the session's state, and everything it
 put out (requests, answers and the replies in them, events). With the host's capture working, a
@@ -14,8 +15,9 @@ marker reaches Lean only if a request that is answered with tokens doesn't captu
 
 To show the search finds what it looks for, the same sequences are run once more with the
 host's capture off; that run must find markers. It also decodes every 2xx `getTimeline` answer
-with `FeedPage.ofJson`. Exit 0 iff no marker reached Lean, the control run found one, and every
-page decoded. -/
+with `FeedPage.ofJson`, and checks that a cancelled call is never answered. Exit 0 iff no marker
+reached Lean, the control run found one, every page decoded and no cancelled call was
+answered. -/
 
 open CairnJson CairnAtproto CairnAtproto.Session CairnAtproto.Fake Cairn.Fuzz
 
@@ -36,6 +38,9 @@ structure Stats where
   posts : Nat := 0
   badPages : Nat := 0
   notFound : Nat := 0
+  cancels : Nat := 0
+  cancelledRequests : Nat := 0
+  answeredAfterCancel : Nat := 0
   firstLeak : Option String := none
 deriving Repr, Inhabited
 
@@ -47,13 +52,17 @@ def Stats.add (a b : Stats) : Stats :=
     refreshFailed := a.refreshFailed + b.refreshFailed, refused := a.refused + b.refused,
     expiredSeen := a.expiredSeen + b.expiredSeen, pages := a.pages + b.pages,
     posts := a.posts + b.posts, badPages := a.badPages + b.badPages,
-    notFound := a.notFound + b.notFound, firstLeak := a.firstLeak.or b.firstLeak }
+    notFound := a.notFound + b.notFound, cancels := a.cancels + b.cancels,
+    cancelledRequests := a.cancelledRequests + b.cancelledRequests,
+    answeredAfterCancel := a.answeredAfterCancel + b.answeredAfterCancel, firstLeak := a.firstLeak.or b.firstLeak }
 
 structure Run where
   s : State := init
   w : World
   /-- Requests the session sent that the host hasn't answered: id, request. -/
-  pending : List (Nat × Http) := []
+  pending : List (Nat × Cairn.Request) := []
+  /-- The app's calls it cancelled. -/
+  cancelled : List Nat := []
   /-- The app's calls: id, call. -/
   calls : List (Nat × Call) := []
   nextCall : Nat := 0
@@ -71,27 +80,41 @@ def Run.note (r : Run) (what : String) (leak : Bool) : Run :=
                                           firstLeak := r.st.firstLeak.or (some what) } }
   else r
 
-/-- What the session put out: requests to the host, forgets done at once, answers read. -/
+/-- A call's answer: a 2xx `getTimeline` page must decode. -/
+def Run.page (r : Run) (id : Nat) (rep : Cairn.Reply) : Run :=
+  match r.calls.lookup id, rep with
+  | some c, .http st _ body =>
+    if c.nsid == nsidGetTimeline && isSuccess st then
+      match (decodeBytes body).bind FeedPage.ofJson with
+      | some p => { r with cursor := p.cursor.or r.cursor,
+                           st := { r.st with pages := r.st.pages + 1, posts := r.st.posts + p.feed.length } }
+      | none => { r with st := { r.st with badPages := r.st.badPages + 1 } }
+    else r
+  | _, _ => r
+
+/-- What the session put out: requests to the host, forgets and cancels done at once, answers
+read. -/
 def Run.absorb (r : Run) (outs : List Out) : Run :=
   outs.foldl (fun r o =>
     let r := r.note s!"out {(reprStr o).take 300}" (hasMarker (reprStr o) || outLeaks o)
     match o with
     | .send rid _ h => { r with pending := r.pending ++ [(rid, h)], st := { r.st with sends := r.st.sends + 1 } }
     | .forget _ item => { r with w := r.w.forget item }
+    | .cancel rid =>
+      -- The runtime drops the request: never answered (the server may already have it).
+      { r with pending := r.pending.filter (·.1 != rid),
+               st := { r.st with cancelledRequests := r.st.cancelledRequests + 1 } }
+    | .answer id _ =>
+      let r := if r.cancelled.contains id then
+          { r with st := { r.st with answeredAfterCancel := r.st.answeredAfterCancel + 1 } }
+        else r
+      match o with
+      | .answer id (.reply rep) => r.page id rep
+      | _ => r
     | .event (.signedIn _) => { r with st := { r.st with signedIn := r.st.signedIn + 1 } }
     | .event (.refreshed _) => { r with st := { r.st with refreshed := r.st.refreshed + 1 } }
     | .event (.refreshFailed _) => { r with st := { r.st with refreshFailed := r.st.refreshFailed + 1 } }
     | .event (.signedOut .refused) => { r with st := { r.st with refused := r.st.refused + 1 } }
-    | .answer id (.reply rep) =>
-      match r.calls.lookup id, rep with
-      | some c, .http st _ body =>
-        if c.nsid == nsidGetTimeline && isSuccess st then
-          match (decodeBytes body).bind FeedPage.ofJson with
-          | some p => { r with cursor := p.cursor.or r.cursor,
-                               st := { r.st with pages := r.st.pages + 1, posts := r.st.posts + p.feed.length } }
-          | none => { r with st := { r.st with badPages := r.st.badPages + 1 } }
-        else r
-      | _, _ => r
     | _ => r) r
 
 /-- Feed the session one input, then check every Lean value the step touched. -/
@@ -136,7 +159,7 @@ def Run.op (r : Run) : Gen Run := do
   let choice ← Gen.weighted [
     (6, pure 0), (2, pure 1), (14, pure 2), (3, pure 3), (2, pure 4),
     (if hasPending then 34 else 0, pure 5), (if hasPending then 3 else 0, pure 6),
-    (if hasPending then 3 else 0, pure 7), (6, pure 8)]
+    (if hasPending then 3 else 0, pure 7), (6, pure 8), (if r.calls.isEmpty then 0 else 3, pure 9)]
   match choice with
   | 0 =>
     let pw := if ← Gen.chance 3 4 then c.password else "wrong-pass-word-0000"
@@ -151,6 +174,14 @@ def Run.op (r : Run) : Gen Run := do
   | 5 => return r.answer (← Gen.below r.pending.length) 0
   | 6 => return r.answer (← Gen.below r.pending.length) 1
   | 7 => return r.answer (← Gen.below r.pending.length) 2
+  | 9 =>
+    -- Cancel one of the latest calls (in flight, held, or already answered).
+    let ids := (r.calls.take 4).map (·.1)
+    if ids.isEmpty then return r
+    let id ← Gen.elem ids
+    let r := { r with cancelled := id :: r.cancelled, st := { r.st with cancels := r.st.cancels + 1 } }
+    -- An answer already given doesn't count against it: only answers after the cancel do.
+    return r.feed (.cancel [id])
   | _ =>
     let ctl ← Gen.oneOf [
       (Control.post ·) <$> Gen.range 1 20, pure .expire, pure .expire, pure .revoke,
@@ -197,7 +228,9 @@ def statsJson (s : Stats) : Json :=
     ("signedIn", Json.ofNat s.signedIn), ("refreshed", Json.ofNat s.refreshed),
     ("refreshFailed", Json.ofNat s.refreshFailed), ("refused", Json.ofNat s.refused),
     ("expiredToken", Json.ofNat s.expiredSeen), ("notFound", Json.ofNat s.notFound),
-    ("pages", Json.ofNat s.pages), ("posts", Json.ofNat s.posts), ("badPages", Json.ofNat s.badPages)]
+    ("pages", Json.ofNat s.pages), ("posts", Json.ofNat s.posts), ("badPages", Json.ofNat s.badPages),
+    ("cancels", Json.ofNat s.cancels), ("cancelledRequests", Json.ofNat s.cancelledRequests),
+    ("answeredAfterCancel", Json.ofNat s.answeredAfterCancel)]
 
 def main (args : List String) : IO UInt32 := do
   let sequences := flag args "--sequences" 300
@@ -205,14 +238,16 @@ def main (args : List String) : IO UInt32 := do
   let seed := flag args "--seed" 0
   let s := runAll seed sequences steps true
   let control := runAll seed sequences steps false
-  let ok := s.leaks == 0 && control.leaks > 0 && s.badPages == 0 && s.markersIssued > 0
+  let ok := s.leaks == 0 && control.leaks > 0 && s.badPages == 0 && s.markersIssued > 0 &&
+    s.answeredAfterCancel == 0 && s.cancelledRequests > 0
   if let some out := strFlag args "--out" then
-    IO.FS.writeFile out (encode (.obj [("check", .str "atproto.no-token"), ("claim", .str "cairn_atproto^10"),
+    IO.FS.writeFile out (encode (.obj [("check", .str "atproto.no-token"), ("claim", .str "cairn_atproto^15"),
       ("seed", Json.ofNat seed), ("sequences", Json.ofNat sequences), ("steps", Json.ofNat steps),
       ("ok", .bool ok), ("run", statsJson s), ("controlRun", statsJson control)]) ++ "\n")
-  IO.println s!"atproto.no-token (cairn_atproto^10): {sequences} sequences × {steps} steps, seed {seed}"
+  IO.println s!"atproto.no-token (cairn_atproto^15): {sequences} sequences × {steps} steps, seed {seed}"
   IO.println s!"  {s.steps} session steps, {s.sends} requests ({s.served} served, {s.lost} lost after the server, {s.failedBefore} failed before it), {s.markersIssued} token markers issued"
   IO.println s!"  {s.signedIn} sign-ins, {s.expiredSeen} ExpiredToken, {s.refreshed} refreshes, {s.refreshFailed} failed, {s.refused} refused; {s.notFound} missing items; {s.pages} pages ({s.posts} posts) decoded, {s.badPages} not"
+  IO.println s!"  {s.cancels} cancels ({s.cancelledRequests} requests cancelled), {s.answeredAfterCancel} answered after their cancel"
   IO.println s!"  markers in Lean values: {s.leaks}{match s.firstLeak with | some w => s!" (first: {w})" | none => ""}"
   IO.println s!"  control run, the host's capture off: {control.leaks} found (must be > 0)"
   IO.println (if ok then "atproto.no-token: ok" else "atproto.no-token: FAILED")

@@ -10,13 +10,18 @@ open CairnJson CairnAtproto
 #guard xrpcUrl "https://pds.example.com//" "app.bsky.feed.getTimeline"
     [("limit", "50"), ("cursor", "2026-10-01T12:00:00.000Z::bafy 1/é")] ==
   "https://pds.example.com/xrpc/app.bsky.feed.getTimeline?limit=50&cursor=2026-10-01T12%3A00%3A00.000Z%3A%3Abafy%201%2F%C3%A9"
-#guard (query "https://h" "a.b.c").method == .get && (query "https://h" "a.b.c").secret == none
+#guard methodOf (query "https://h" "a.b.c") == "GET" && secretOf (query "https://h" "a.b.c") == none
 #guard (createSession "https://bsky.social" "alice.test" "pw").redact
-#guard (createSession "https://bsky.social" "alice.test" "pw").body ==
+#guard bodyOf (createSession "https://bsky.social" "alice.test" "pw") ==
   "{\"identifier\":\"alice.test\",\"password\":\"pw\"}"
-#guard (createSession "https://bsky.social" "a" "b").capture == [("accessJwt", "access"), ("refreshJwt", "refresh")]
-#guard (refreshSession "https://bsky.social").secret == some { account := "refresh" }
-#guard (refreshSession "https://bsky.social").body == "" && !(refreshSession "https://x").redact
+#guard captureOf (createSession "https://bsky.social" "a" "b") == [("accessJwt", "access"), ("refreshJwt", "refresh")]
+#guard secretOf (createSession "https://bsky.social" "a" "b") == none
+#guard secretOf (refreshSession "https://bsky.social") == some (Cairn.Secret.bearer "refresh")
+#guard itemOf (refreshSession "https://bsky.social") == some "refresh"
+#guard itemOf (getSession "https://bsky.social") == some "access"
+#guard bodyOf (refreshSession "https://bsky.social") == "" && !(refreshSession "https://x").redact
+-- What Cairn's frame dump prints for the sign-in: its size, not the password.
+#guard !(reprStr (createSession "https://bsky.social" "alice.test" "pw-planted")).contains "pw-planted"
 
 -- Errors
 #guard (XrpcError.ofBody "{\"error\":\"ExpiredToken\",\"message\":\"Token has expired\"}".toUTF8) ==

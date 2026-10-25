@@ -34,6 +34,9 @@ request ids the session chose.
 * **Sign out** forgets both items and answers the held calls. A sign-in or refresh still in flight
   is abandoned: its reply, which may have written new tokens, makes the session forget both
   items again, and until it arrives `signIn` answers `busy`.
+* **Cancel** (`Input.cancel ids`) drops the app's calls: one in flight has its request cancelled
+  (`Out.cancel`), one held for a refresh is never sent, and neither is answered. The app never
+  edits the state itself.
 
 The claims about it (`cairn_atproto^N`) are in `CairnAtproto.Claims`, with proofs in
 `CairnAtproto.Proofs.Session`. -/
@@ -62,12 +65,12 @@ structure Call where
 deriving Repr, DecidableEq, Inhabited
 
 /-- The request for a call, authorised by the access token. -/
-def Call.http (c : Call) (service : String) : Http :=
+def Call.http (c : Call) (service : String) : Cairn.Request :=
   if c.procedure then
-    { method := .post, url := xrpcUrl service c.nsid c.params,
-      headers := [("Accept", "application/json"), ("Content-Type", "application/json")],
-      body := c.body, secret := some { account := accessItem } }
-  else query service c.nsid c.params (secret := some { account := accessItem })
+    .http "POST" (xrpcUrl service c.nsid c.params)
+      [("Accept", "application/json"), ("Content-Type", "application/json")]
+      c.body.toUTF8 timeoutMs (some (Cairn.Secret.bearer accessItem))
+  else query service c.nsid c.params (secret := some (Cairn.Secret.bearer accessItem))
 
 /-- `getTimeline`: the home feed, `limit` posts (1 to 100; the server's default is 50) after
 `cursor`. -/
@@ -159,12 +162,15 @@ inductive Event where
 deriving Repr, BEq, Inhabited
 
 inductive Out where
-  /-- Send request `rid`. -/
-  | send (rid : Nat) (kind : Kind) (h : Http)
+  /-- Send request `rid` (Cairn's `Effect.request rid r`). -/
+  | send (rid : Nat) (kind : Kind) (r : Cairn.Request)
   /-- Delete the Keychain item (cairn#205's `Request.forgetSecret`) as request `rid`. -/
   | forget (rid : Nat) (item : String)
   /-- The app's call `id` has ended. -/
   | answer (id : Nat) (a : Answer)
+  /-- Request `rid` is no longer wanted (Cairn's `Effect.cancelRequest rid`): the app cancelled
+  its call. Its reply, if one still comes, changes nothing. -/
+  | cancel (rid : Nat)
   | event (e : Event)
 deriving Repr, BEq, Inhabited
 
@@ -176,6 +182,9 @@ inductive Input where
   /-- Make call `c`; the app's id `id` comes back in its `answer`. -/
   | call (id : Nat) (c : Call)
   | signOut
+  /-- The app no longer wants calls `ids`: each is dropped, in flight or held, its request
+  cancelled, and it gets no answer. A call the session doesn't hold is ignored. -/
+  | cancel (ids : List Nat)
   /-- The host's reply to request `rid`. -/
   | reply (rid : Nat) (r : Cairn.Reply)
 deriving Repr, BEq, Inhabited
@@ -305,6 +314,10 @@ def step (s : State) : Input → State × List Out
     let (s₁, o) := forgetBoth { s with phase := .signedOut, held := [],
                                        abandoned := ab ++ s.abandoned }
     (s₁, answerAll s.held .signedOut ++ o ++ [.event (.signedOut .requested)])
+  | .cancel ids =>
+    ({ s with inflight := s.inflight.filter (fun x => x.2.id ∉ ids),
+              held := s.held.filter (fun p => p.id ∉ ids) },
+     (s.inflight.filter (fun x => x.2.id ∈ ids)).map fun x => .cancel x.1)
   | .reply rid r =>
     match s.phase with
     | .signingIn rid' host => if rid = rid' then onSignIn s host r else onCallReply s rid r

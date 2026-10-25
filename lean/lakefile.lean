@@ -5,7 +5,7 @@ package cairn_atproto where
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`relaxedAutoImplicit, false⟩,
     ⟨`weak.cairn.claims.scope, "cairn_atproto"⟩]
 
-require "iamnbutler" / "cairn" @ "^0.2.5"
+require "iamnbutler" / "cairn" @ "^0.3.0"
 require "iamnbutler" / "cairn_json" @ "^0.1.0"
 
 /-- The code apps link. -/

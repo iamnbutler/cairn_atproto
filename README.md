@@ -14,7 +14,7 @@ responses or synthesized.
 
 ```lean
 -- lean/lakefile.lean, after `cairn add cairn_atproto`
-require "iamnbutler" / "cairn_atproto" @ "^0.1.1"
+require "iamnbutler" / "cairn_atproto" @ "^0.2.0"
 
 import CairnAtproto
 open CairnAtproto CairnAtproto.Session
@@ -27,10 +27,15 @@ Outcome.ofReply FeedPage.ofJson reply
 
 -- The session: feed it the app's inputs and the host's replies; send what it says.
 let (s, outs) := step init (.signIn "https://bsky.social" "alice.example.com" appPassword)
--- outs = [.send 0 .signIn (createSession …)]   (capture both tokens; the body is `redact`)
+-- outs = [.send 0 .signIn (createSession …)]   (capture both tokens; the request is `redact`)
 let (s, outs) := step s (.reply 0 reply)        -- [.event (.signedIn account)]
 let (s, outs) := step s (.call 7 (Call.getTimeline (some 50)))
--- [.send 1 (.call 0) { url := "<pds>/xrpc/app.bsky.feed.getTimeline?limit=50", secret := access, … }]
+-- [.send 1 (.call 0) (.http "GET" "<pds>/xrpc/app.bsky.feed.getTimeline?limit=50" … (some (Secret.bearer "access")))]
+let (s, outs) := step s (.cancel [7])           -- [.cancel 1]: the app no longer wants call 7
+
+-- The app sends each `Out` as Cairn effects, under ids it keeps apart from its own:
+--   .send rid _ r   ↦ Effect.request rid r        .forget rid item ↦ Effect.request rid (.forgetSecret item)
+--   .cancel rid     ↦ Effect.cancelRequest rid    and hands every reply back as `.reply rid r`.
 ```
 
 ## What's in it
@@ -39,11 +44,11 @@ let (s, outs) := step s (.call 7 (Call.getTimeline (some 50)))
 
 | | |
 |---|---|
-| `Http` | a request in the shape cairn#205 gives `Request.http`: `method`, `url`, `headers`, `body`, `timeoutMs`, `secret : Option KeychainSecret`, `capture : List (field × item)`, and `redact` (the body holds a password) |
-| `KeychainSecret` | `header: scheme ++ <value of Keychain item account>`; by default `Authorization: Bearer …` |
+| Requests | Cairn's own `Request.http` (Cairn 0.3.0): `secret := some (Secret.bearer item)` puts `Authorization: Bearer <item's value>` on it as the host sends it, `capture` lists the reply fields the host writes to Keychain items and blanks, `redact` keeps it out of every dump and log |
 | `accessItem`, `refreshItem` | `"access"`, `"refresh"` |
 | `query service nsid params secret` | GET `service/xrpc/nsid?params` |
 | `procedure service nsid body secret capture redact` | POST with a JSON body |
+| `secretOf`, `itemOf`, `captureOf`, `urlOf`, `methodOf`, `bodyOf` | read a request back (`itemOf`: the Keychain item its secret names) |
 | `xrpcUrl`, `queryString`, `percentEncode` | URLs: RFC 3986 unreserved characters kept, everything else `%XX` of its UTF-8 bytes |
 | `ErrorName` | `expiredToken`, `invalidToken`, `authRequired`, `rateLimitExceeded`, `other name` |
 | `XrpcError.ofJson`, `ofBody`, `toJson` | `{"error", "message"}`; a body that isn't one is `other ""` |
@@ -82,13 +87,15 @@ A pure state machine: `step : State → Input → State × List Out`.
 | `signIn host identifier password` | from `launched` or signed out; otherwise `busy` |
 | `resume host` | at launch: refresh the session the Keychain items hold |
 | `call id c` | an XRPC `Call` (`Call.getTimeline`, `Call.getAuthorFeed`, `Call.getSession`, or any query or procedure) |
+| `cancel ids` | the app no longer wants these calls: dropped in flight (request cancelled) or held, never answered |
 | `signOut` | |
 | `reply rid r` | the host's `Cairn.Reply` to request `rid` |
 
 | `Out` | |
 |---|---|
-| `send rid kind http` | send `http` as request `rid` (`kind`: `signIn`, `refresh`, `call ticket`) |
-| `forget rid item` | delete Keychain item `item` (cairn#205's `Request.forgetSecret`) |
+| `send rid kind r` | send Cairn request `r` as request `rid` (`kind`: `signIn`, `refresh`, `call ticket`) |
+| `forget rid item` | delete Keychain item `item`: `Request.forgetSecret item` as request `rid` |
+| `cancel rid` | request `rid` is no longer wanted: `Effect.cancelRequest rid` |
 | `answer id a` | call `id` has ended: `reply r` (read it with `Outcome.ofReply`) or `signedOut` |
 | `event e` | `signedIn a`, `refreshed a`, `signInFailed r`, `refreshFailed r`, `signedOut why`, `busy` |
 
@@ -122,14 +129,19 @@ sequence of inputs from any app, not only the harness's.
 | Id | Kind | Claim |
 |---|---|---|
 | `cairn_atproto^1`–`^4` | move | the app's inputs: sign in, resume, a call, sign out |
-| `cairn_atproto^5` | invariant | at most one `refreshSession` in flight (`OneRefresh`) |
-| `cairn_atproto^6` | invariant | every call is sent at most twice (`AtMostTwice`) |
-| `cairn_atproto^7` | invariant | a call already sent is sent again only in the step a refresh in flight gets a 2xx session (`RetryAfterRefresh`) |
-| `cairn_atproto^8` | invariant | signed out or signing in, no request carrying a Keychain secret is issued (`NoSecretSignedOut`) |
+| `cairn_atproto^16` | move | cancel a call: afterwards no call with its id is in flight or held, and the phase is unchanged |
+| `cairn_atproto^11` | invariant | at most one `refreshSession` in flight (`OneRefresh`) |
+| `cairn_atproto^12` | invariant | every call is sent at most twice (`AtMostTwice`) |
+| `cairn_atproto^13` | invariant | a call already sent is sent again only in the step a refresh in flight gets a 2xx session (`RetryAfterRefresh`) |
+| `cairn_atproto^14` | invariant | signed out or signing in, no request carrying a Keychain secret is issued (`NoSecretSignedOut`) |
 | `cairn_atproto^9` | invariant | a failed refresh answers every held call in that step; a refused one also forgets both items and answers them `signedOut`; calls are held only while a refresh is in flight (`RefusalEndsAll`) |
-| `cairn_atproto^10` | assume | no Lean value holds a token. By construction (no type has a token field) and `SessionInfo.ofJson_replaceTokens` (the decoder reads the same account whatever `accessJwt` and `refreshJwt` hold); its check `atproto.no-token` is `make fake-fuzz` (below, "The fake PDS") |
+| `cairn_atproto^15` | assume | no Lean value holds a token. By construction (no type has a token field) and `SessionInfo.ofJson_replaceTokens` (the decoder reads the same account whatever `accessJwt` and `refreshJwt` hold); its check `atproto.no-token` is `make fake-fuzz` (below, "The fake PDS") |
 
-The bookkeeping invariant `Inv` behind ^5–^7 relates the state to the log: request ids are
+Retired in 0.2.0: ^5–^8 (their statements changed when requests became Cairn's `Request` and the
+session gained `cancel`; the same claims are now ^11–^14) and ^10 (its text said the trusted-base
+fuzz checks it; it is now ^15, checked by `make fake-fuzz`).
+
+The bookkeeping invariant `Inv` behind ^11–^13 relates the state to the log: request ids are
 fresh, tickets are distinct, each pending call has been sent `tries` times (a held one at most
 once), every refresh in flight is the phase's or abandoned, and at most one request is abandoned.
 `Inv.of_step` proves every step keeps it.
@@ -202,7 +214,7 @@ a contiguous run of the timeline (`page_feed`, `page_head`).
 **In Lean.** `Fake.Server.handle` answers a request; `Fake.World` adds the host: the Keychain
 (which token each item holds, `World.generation`) and cairn#205's capture (a 2xx JSON object, all
 or nothing, the fields blanked before Lean sees the body), so `World.send` takes the session
-machine's `Http` and gives the `Cairn.Reply` Lean receives. `lake exe fake-pds-model` is the
+machine's `Cairn.Request` and gives the `Cairn.Reply` Lean receives. `lake exe fake-pds-model` is the
 model over JSON lines, for the replay.
 
 **In `cairn fuzz`.** `Fake.replies cfg hooks` has the type of `Cairn.Fuzz.Custom.replies`:
@@ -217,18 +229,20 @@ state drawn at random that fits the request: the timeline as it stands at reques
 (`Fake.timeline cfg (cfg.base + arrivedBefore cfg (id + 1))`, growing at the head as ids grow,
 so a claim can be stated against it), the access token expired with chance `1/life`, a refresh
 refused one time in ten, a missing Keychain item (`failed notFound`) by the session's phase, and a
-500, 503, 429, timeout or network failure one time in eight. `Hooks.capture` says what the host
-captures for a request (Cairn 0.2.5's `Request.http` can't carry it; by default
-`createSession` and `refreshSession` capture both tokens), and `replyHasMarker` finds a token
-that wasn't captured. Images on the fake are answered with their size.
+500, 503, 429, timeout or network failure one time in eight. The request says which token it
+carries (its `secret`'s Keychain item, none without one) and what the host captures (its
+`capture`); `Hooks.capture` overrides that only to check that a leak is caught, and
+`replyHasMarker` finds a token that wasn't captured. Images on the fake are answered with their
+size.
 
-**`atproto.no-token`** (`make fake-fuzz`, in `make check`; claim `^10`'s check): the session
+**`atproto.no-token`** (`make fake-fuzz`, in `make check`; claim `^15`'s check): the session
 machine against `Fake.World` in random sequences (sign-ins with right and wrong passwords,
-resumes, calls, sign-outs; replies in any order, lost after the server handled them, or failed
-before it; posts arriving, tokens expiring and revoked, faults), searching after every step the
-reply handed to Lean, the session's state and everything it put out for a token marker. It then
-runs the same sequences with the host's capture off, which must find markers, and decodes every
-page. The report is `build/fake-fuzz.json`.
+resumes, calls, cancels, sign-outs; replies in any order, lost after the server handled them, or
+failed before it; posts arriving, tokens expiring and revoked, faults), searching after every step
+the reply handed to Lean, the session's state and everything it put out for a token marker. It
+then runs the same sequences with the host's capture off, which must find markers. It also
+decodes every page and checks that no cancelled call is answered. The report is
+`build/fake-fuzz.json`.
 
 ### Running Sky against the fake PDS
 
@@ -251,14 +265,14 @@ test, log, script or command line, in this repository or any other. The fake's i
 password and tokens are generated and fake; its log shows paths and statuses, never a token or a
 `createSession` body.
 
-## cairn#205
+## Cairn 0.3.0
 
-This release depends on Cairn 0.2.5, whose `Request.http` has no secrets, so `Http` is this
-package's own, in the shape cairn#205 gives `Request.http` in Cairn 0.3.0: `secret` is
-`some (Secret.bearer item)`, `capture` is the same list, and `Out.forget` is
-`Request.forgetSecret item`. `redact` has no counterpart yet; until it does, the app must keep
-`createSession`'s body out of logs. A later release maps `Http` to `Request` once Cairn 0.3.0 is
-on the registry.
+Since 0.2.0 this package is on Cairn 0.3.0 and its requests are Cairn's `Request.http`: the
+session's `Out.send` carries the request the app sends as it is, with the Keychain secret,
+captures and `redact` of cairn#205 and cairn#206. Upgrading from 0.1.x: `Http`, `KeychainSecret`
+and `Method` are gone (read a request with `urlOf`, `itemOf`, `captureOf`, …); send
+`Out.forget rid item` as `Request.forgetSecret item` and the new `Out.cancel rid` as
+`Effect.cancelRequest rid`; cancel calls with `Input.cancel ids` instead of editing the state.
 
 ## Building
 

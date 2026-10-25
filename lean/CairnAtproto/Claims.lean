@@ -16,13 +16,17 @@ input (`CairnAtproto.Proofs.Session`), so `P` holds after any sequence of inputs
 
 | Id | Claim |
 |---|---|
-| ^1–^4 | the app's inputs: sign in, resume, a call, sign out |
-| ^5 | at most one `refreshSession` in flight |
-| ^6 | every call sent at most twice |
-| ^7 | a call is sent again only in the step a refresh succeeds |
-| ^8 | signed out (or signing in), no request carrying a Keychain secret is issued |
+| ^1–^4, ^16 | the app's inputs: sign in, resume, a call, sign out, cancel calls |
+| ^11 | at most one `refreshSession` in flight |
+| ^12 | every call sent at most twice |
+| ^13 | a call is sent again only in the step a refresh succeeds |
+| ^14 | signed out (or signing in), no request carrying a Keychain secret is issued |
 | ^9 | a failed refresh ends every held call; a refused one forgets both items |
-| ^10 | no Lean value holds a token (assumed; evidence: `SessionInfo.ofJson_replaceTokens` and #208's fuzz) | -/
+| ^15 | no Lean value holds a token (assumed; evidence: `SessionInfo.ofJson_replaceTokens` and `make fake-fuzz`) |
+
+Retired in 0.2.0: ^5–^8, whose statements changed when requests became Cairn's `Request` and the
+session gained `cancel` (same words, now ^11–^14), and ^10, whose text named the wrong place for
+its check (now ^15). -/
 
 @[expose] public section
 
@@ -78,6 +82,20 @@ move ^4 signOutMove (s : Model) "Sign out" where
     post s' := s'.s.phase = .signedOut ∧ s'.s.held = []
     sound := by intro s; simp [signOutMove.press.apply, signOutMove.press.post, Model.feed, step, forgetBoth]
 
+move ^16 cancelMove (s : Model) (k : Nat) "Cancel a call" where
+  does "Cancel the app's call k (in flight or held for a refresh)."
+  sees "Its request is cancelled (or, held, never sent) and it gets no answer; nothing else changes."
+  on press
+    apply := s.feed (.cancel [k])
+    post s' := (∀ x ∈ s'.s.inflight, x.2.id ≠ k) ∧ (∀ p ∈ s'.s.held, p.id ≠ k) ∧
+      s'.s.phase = s.s.phase
+    sound := by
+      intro s k
+      simp only [cancelMove.press.apply, cancelMove.press.post, Model.feed, step]
+      refine ⟨fun x hx => ?_, fun p hp => ?_, by simp⟩
+      · have := (List.mem_filter.1 hx).2; simpa using this
+      · have := (List.mem_filter.1 hp).2; simpa using this
+
 /-- The host's replies go to the session; nothing else reaches it. -/
 def receive (s : Model) : Msg → Model × List Effect
   | .reply id r => (s.feed (.reply id r), [])
@@ -97,30 +115,37 @@ theorem update_keeps {P : Model → Prop} (hp : ∀ m, Ok m → P m) :
     Move.all_cons (signInMove.preserves _ fun s h => keeps hp s _ h)
       (Move.all_cons (resumeMove.preserves _ fun s h => keeps hp s _ h)
       (Move.all_cons (callMove.preserves _ fun s _ h => keeps hp s _ h)
-      (Move.all_cons (signOutMove.preserves _ fun s h => keeps hp s _ h) Move.all_nil)))
+      (Move.all_cons (signOutMove.preserves _ fun s h => keeps hp s _ h)
+      (Move.all_cons (cancelMove.preserves _ fun s _ h => keeps hp s _ h) Move.all_nil))))
 
-invariant ^5 oneRefresh "One refresh at a time" for machine where
+retire ^5 invariant "One refresh at a time" because "Its statement changed in 0.2.0 (requests are Cairn's Request; the session has cancel): reissued as ^11."
+retire ^6 invariant "A call is sent at most twice" because "Its statement changed in 0.2.0 (requests are Cairn's Request; the session has cancel): reissued as ^12."
+retire ^7 invariant "A second send only after a successful refresh" because "Its statement changed in 0.2.0 (requests are Cairn's Request; the session has cancel): reissued as ^13."
+retire ^8 invariant "Signed out, no secret is sent" because "Its statement changed in 0.2.0 (requests are Cairn's Request; the session has cancel): reissued as ^14."
+retire ^10 assume "No Lean value holds a token" because "Its text said the trusted-base fuzz checks it; the check is this package's make fake-fuzz. Reissued as ^15."
+
+invariant ^11 oneRefresh "One refresh at a time" for machine where
   does "At most one refreshSession request is in flight: a call answered ExpiredToken while one is in flight joins it."
   holds m := Ok m ∧ OneRefresh m.log
   init := ⟨Ok.init, Ok.init.inv.oneRefresh⟩
   step := update_keeps fun _ h => h.inv.oneRefresh
   receive := receive_keeps fun _ h => h.inv.oneRefresh
 
-invariant ^6 atMostTwice "A call is sent at most twice" for machine where
+invariant ^12 atMostTwice "A call is sent at most twice" for machine where
   does "Every call the app makes is sent at most twice."
   holds m := Ok m ∧ AtMostTwice m.log
   init := ⟨Ok.init, Ok.init.inv.atMostTwice⟩
   step := update_keeps fun _ h => h.inv.atMostTwice
   receive := receive_keeps fun _ h => h.inv.atMostTwice
 
-invariant ^7 retryAfterRefresh "A second send only after a successful refresh" for machine where
+invariant ^13 retryAfterRefresh "A second send only after a successful refresh" for machine where
   does "A call that was sent before is sent again only in the step a refresh in flight gets a 2xx session reply."
   holds m := Ok m ∧ RetryAfterRefresh m.log
   init := ⟨Ok.init, Ok.init.retry⟩
   step := update_keeps fun _ h => h.retry
   receive := receive_keeps fun _ h => h.retry
 
-invariant ^8 noSecretSignedOut "Signed out, no secret is sent" for machine where
+invariant ^14 noSecretSignedOut "Signed out, no secret is sent" for machine where
   does "While signed out or signing in, no request carrying a Keychain secret is issued."
   holds m := Ok m ∧ NoSecretSignedOut m.log
   init := ⟨Ok.init, Ok.init.noSecret⟩
@@ -134,8 +159,8 @@ invariant ^9 refusalEndsAll "A failed refresh ends the held calls" for machine w
   step := update_keeps fun _ h => h.refusal
   receive := receive_keeps fun _ h => h.refusal
 
-assume ^10 noTokens "No Lean value holds a token" where
-  does "No type in cairn_atproto holds an access or refresh token: the session state has DIDs, handles, service URLs, request ids and the app's calls; SessionInfo has no token field and its decoder never reads accessJwt or refreshJwt (SessionInfo.ofJson_replaceTokens). By construction; checked by the trusted-base fuzz."
+assume ^15 noTokens "No Lean value holds a token" where
+  does "No type in cairn_atproto holds an access or refresh token: the session state has DIDs, handles, service URLs, request ids and the app's calls; SessionInfo has no token field and its decoder never reads accessJwt or refreshJwt (SessionInfo.ofJson_replaceTokens). Tokens go from the host's capture to the Keychain and back as a request's secret header (Cairn's Request.http). By construction; checked by this package's make fake-fuzz (atproto.no-token), which runs the session against the fake PDS and its host and searches every Lean value for the fake's token markers."
   check "atproto.no-token"
 
 def claimInfos : List ClaimInfo := claims%
