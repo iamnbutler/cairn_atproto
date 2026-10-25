@@ -47,7 +47,7 @@ def s6 := step s5.1 (.reply 2 okSession)
 #guard s6.1.phase == .signedIn alice && s6.1.held.isEmpty
 #guard sends s6.2 == [(3, .call 0, pds ++ "/xrpc/app.bsky.feed.getTimeline?limit=50", some { account := "access" }),
                       (4, .call 1, pds ++ "/xrpc/com.atproto.server.getSession", some { account := "access" })]
-#guard s6.1.inflight.map (fun (r, p) => (r, p.tries)) == [(4, 1), (3, 2)]
+#guard s6.1.inflight.map (fun (r, p) => (r, p.tries)) == [(3, 2), (4, 1)]
 -- Expired again on its second try: answered, no new refresh.
 def s7 := step s6.1 (.reply 3 expired)
 #guard sends s7.2 == [] && answers s7.2 == [(7, true)]

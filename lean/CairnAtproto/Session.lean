@@ -207,13 +207,17 @@ def sendCall (service : String) (s : State) (p : Pending) : State × List Out :=
   ({ s with next := s.next + 1, inflight := (s.next, { p with tries := p.tries + 1 }) :: s.inflight },
    [.send s.next (.call p.ticket) (p.call.http service)])
 
-/-- Send each in turn. -/
-def sendAll (service : String) : State → List Pending → State × List Out
-  | s, [] => (s, [])
-  | s, p :: ps =>
-    let (s₁, o₁) := sendCall service s p
-    let (s₂, o₂) := sendAll service s₁ ps
-    (s₂, o₁ ++ o₂)
+/-- Each with its request id, from `n` up. -/
+def numbered (n : Nat) : List Pending → List (Nat × Pending)
+  | [] => []
+  | p :: ps => (n, p) :: numbered (n + 1) ps
+
+/-- Send each, oldest first, to `service`, once more. -/
+def sendAll (service : String) (s : State) (ps : List Pending) : State × List Out :=
+  let ns := numbered s.next ps
+  ({ s with next := s.next + ps.length,
+            inflight := ns.map (fun x => (x.1, { x.2 with tries := x.2.tries + 1 })) ++ s.inflight },
+   ns.map fun x => .send x.1 (.call x.2.ticket) (x.2.call.http service))
 
 /-- Forget both items. -/
 def forgetBoth (s : State) : State × List Out :=
