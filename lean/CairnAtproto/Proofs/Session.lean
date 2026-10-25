@@ -12,11 +12,13 @@ sees: requests sent (`sentIn`), requests answered (a `reply` input), requests in
 input, so for every app.
 
 * `step_noSecret`: with no session, no step sends a request with a secret.
-* `step_refused`: a refused refresh forgets both items and answers every held call.
-* `Inv` (the session's bookkeeping agrees with the log) is kept by every step
-  (`Inv.feed`), and gives at most one refresh in flight (`Inv.oneRefresh`), every call sent at
-  most twice (`Inv.twice`) and a second send only on a successful refresh
-  (`Inv.retryAfterRefresh`). -/
+* `step_failed`, `step_refused`: a failed refresh answers every held call; a refused one also
+  forgets both items and answers them `signedOut`.
+* `Inv` (the session's bookkeeping agrees with the log) is kept by every step (`Inv.of_step`),
+  and gives at most one refresh in flight (`Inv.oneRefresh`), every call sent at most twice
+  (`Inv.atMostTwice`) and a second send only in the step a refresh succeeds (`Inv.retryStep`).
+* `Ok` gathers them all; `Ok.init` and `Ok.feed` (every input keeps it) are what the claims'
+  invariants use. -/
 
 @[expose] public section
 

@@ -12,7 +12,8 @@ proofs (`CairnAtproto.Proofs.RoundTrip`) reason about one set of definitions:
 * `optMap` decodes every element of a list or nothing, by plain structural recursion.
 * `opt k v` writes an optional member: `[(k, v)]` or nothing.
 
-The readers extend `CairnJson.Json`'s namespace so they read as `j.str? "did"`. Counts are `Nat`s written as plain integers (`⟨n, 0⟩`), as the AppView writes them. -/
+The readers extend `CairnJson.Json`'s namespace so they read as `j.str? "did"`. Counts are
+`Nat`s written as plain integers (`⟨n, 0⟩`), as the AppView writes them. -/
 
 @[expose] public section
 
