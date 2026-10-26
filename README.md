@@ -15,7 +15,7 @@ responses or synthesized.
 
 ```lean
 -- lean/lakefile.lean, after `cairn add cairn_atproto`
-require "iamnbutler" / "cairn_atproto" @ "^0.2.0"
+require "iamnbutler" / "cairn_atproto" @ "^0.3.0"
 
 import CairnAtproto
 open CairnAtproto CairnAtproto.Session
@@ -428,10 +428,8 @@ accessors for an app's checks read the repo as it is (what the AppView shows onc
 up): `World.likedBy w uri`, `World.repostedBy w uri`, `World.likeCount w uri` (seeded likes plus
 like records), `World.muted w did`, `World.seenAt w`.
 
-The published cairn this package requires (`^0.3.0`; the registry has up to 0.4.1) has no
-`Cairn.Fuzz.Server`, so `Fake.server` itself waits for cairn 0.5.0. Once that is published,
-bump `require "iamnbutler" / "cairn"` and add, in `CairnAtproto/Fake.lean` (with
-`public import Cairn.Fuzz.Rng`):
+`Fake.server cfg checks drained` puts them together (it needs cairn 0.5.0, which this package
+requires):
 
 ```lean
 /-- The fake PDS as a `cairn fuzz` server (cairn#260). -/
@@ -447,8 +445,7 @@ def server {S : Type} (cfg : Config := {})
   describe := World.describe
 ```
 
-It type-checks, and the whole package builds, against cairn's main (0.5.0, unreleased). An app
-then plugs it in, keeping `replies` for images (the check here is an example, for an app
+An app plugs it in, keeping `replies` for images (the check here is an example, for an app
 whose state lists posts with a `liked` flag):
 
 ```lean
@@ -460,6 +457,22 @@ def fuzz : Cairn.Fuzz.Custom State where
 
 `retransmit` stays off: a retransmitted `refreshSession` is refused after the first rotated the
 tokens, a refusal that did something.
+
+The world starts with an empty Keychain, and the identifier and password the fake accepts come
+from the seed `worldGen` draws, which the app can't know. An app that opens a saved session at
+launch, as Sky does, starts from a world that holds one: `World.saved` sends the session's own
+`createSession` with the world's identifier and password through the host, which captures the
+tokens (`{ Fake.server {} … with init := Fake.World.saved <$> Fake.worldGen {} }`).
+
+**FakeApp** (`lean/FakeApp.lean`, `make fuzz-app`, in `make check`; `cairn fuzz FakeApp` does the
+same): a small app on the session machine, run under `cairn fuzz` through Cairn's runtime with
+`Fake.server` as its server. It opens the saved session, loads the timeline, likes posts and
+signs out; its invariant `fake_app^6` (a like the server acknowledged shows liked) carries the
+server check that the tester's repo holds every acknowledged like, after every step and once
+every reply is in, while replies fail before the server acts or are lost after, tokens expire
+and rotate, and other accounts act. Its claims are in their own scope, `fake_app`, unpublished;
+`lake exe fuzz` is the package's fuzz executable (`Claims`, the session machine's harness, runs
+at the model level).
 
 **`atproto.no-token`** (`make fake-fuzz`, in `make check`; claim `^15`'s check): the session
 machine against `Fake.World` in random sequences (sign-ins with right and wrong passwords,
@@ -515,9 +528,15 @@ test, log, script or command line, in this repository or any other. The fake's i
 password and tokens are generated and fake; its log shows paths and statuses, never a token or a
 `createSession` body.
 
-## Unreleased (0.3.0)
+## 0.3.0
 
-For Sky's M5 (cairn#249, cairn#250, cairn#236). Not yet published; 0.3.0 ships with cairn#258.
+26 October 2026. For Sky's M5 (cairn#249, cairn#250, cairn#236), on Cairn 0.5.0.
+
+- **Cairn ^0.5.0** (was ^0.3.0). An app on 0.3.0 moves to Cairn 0.5.0 too (Cairn's release
+  notes, "Upgrading to v0.5.0": every app links Lean's `libStd`, frames v13).
+- **`Fake.server`**: the fake PDS as a `cairn fuzz` server (cairn#260), its world the whole
+  `Fake.World`, and `Fake.World.saved`, a world with a signed-in session in its Keychain for an
+  app that resumes at launch; FakeApp runs it under `cairn fuzz` (`make fuzz-app`, above).
 
 - **Record keys**: `Tid`, `TidClock.mint` (strictly increasing, `^17`–`^19`), `AtUri`.
 - **Writes**: `Record` (like, repost, follow), `PutRecord`, `Call.putRecord`, `deleteRecord`,
@@ -540,7 +559,7 @@ For Sky's M5 (cairn#249, cairn#250, cairn#236). Not yet published; 0.3.0 ships w
   `lost-after`. `make fake-fuzz` writes and runs the checks of `^22`–`^25`; claims `^31`–`^33`
   prove the fake's writes, counts and notification pages. The pieces of a `cairn fuzz` server
   (`Fake.worldGen`, `handles`, `serve`, `tick`, `World.likedBy`, `likeCount`, `muted`,
-  `seenAt`, `describe`); `Fake.server` itself waits for cairn 0.5.0 (above).
+  `seenAt`, `describe`).
 - `formatDatetime`.
 - Upgrading: `Profile` and `Post` gained fields (`viewer`; `reply`, `viewer`), so anonymous
   constructors (`⟨…⟩`) and `obtain` patterns on them need the new fields; named-field

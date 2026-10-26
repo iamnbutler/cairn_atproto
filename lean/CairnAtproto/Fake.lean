@@ -35,6 +35,8 @@ tested (cairn#208). The same behaviour runs over HTTP in `tools/fake-pds/` (Bun)
   fits the request: the timeline as it stands at that request id, the access token expired with
   chance `1/life` (expiry after a random number of calls is memoryless), a refresh refused one
   time in ten (a rotation the host never captured), faults one time in eight.
+* **As a `cairn fuzz` server** (`server`, cairn#260): a `Cairn.Fuzz.Server` whose world is a
+  whole `World`, drawn per sequence (`worldGen`), so writes, likes and mutes persist through it.
 
 Everything is total and pure; nothing here touches the network. -/
 
@@ -1410,5 +1412,27 @@ def World.describe (w : World) : String :=
   s!"fake PDS seed {s.cfg.seed}: {s.length} posts, request {s.count}, lag {s.lag}, " ++
   s!"{s.log.length} changes ({s.seenLog.length} seen), records {s.now.repo.map (recUri s.cfg)}, " ++
   s!"muted {s.now.muted}, seenAt {s.seenAt.map iso}"
+
+/-- The world with a signed-in session saved in the host's Keychain, as an app finds it at
+launch: the session's own `createSession` with the identifier and password of the world's seed
+(which an app can't know), sent through the host, which captures both tokens. For a `cairn fuzz`
+server whose app resumes at launch: `{ server cfg … with init := World.saved <$> worldGen cfg }`. -/
+def World.saved (w : World) : World :=
+  let c := w.server.cfg
+  match (Session.step {} (.signIn c.service c.identifier c.password)).2 with
+  | [.send _ _ r] => (w.send r).1
+  | _ => w
+
+/-- The fake PDS as a `cairn fuzz` server (cairn#260). -/
+def server {S : Type} (cfg : Config := {})
+    (checks drained : List (Cairn.ClaimId × (S → World → Bool)) := []) : Cairn.Fuzz.Server S where
+  W := World
+  init := worldGen cfg
+  handles := handles
+  handle := serve
+  tick := tick
+  checks := checks
+  drained := drained
+  describe := World.describe
 
 end CairnAtproto.Fake

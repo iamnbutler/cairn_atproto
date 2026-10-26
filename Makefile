@@ -8,12 +8,12 @@ export LAKE_ARTIFACT_CACHE := false
 LIBS = CairnAtproto CairnAtprotoProofs CairnAtprotoTests
 FIXTURES = fixtures/public/*.json fixtures/synthesized/*.json
 
-.PHONY: build lint audit ledger ledger-update kernel fixtures fixtures-update fake-fuzz fake-pds-replay fake-pds check clean
+.PHONY: build lint audit ledger ledger-update kernel fixtures fixtures-update fake-fuzz fuzz-app fake-pds-replay fake-pds check clean
 
 # The library, the proofs, the build-time tests (`#guard`), the fixtures checker and the fake
 # PDS's executables.
 build:
-	cd lean && lake build -q $(LIBS) fixtures fake-pds-model fake-fuzz
+	cd lean && lake build -q $(LIBS) FakeApp fixtures fake-pds-model fake-fuzz fuzz
 
 # Constructs that bypass the kernel, run unchecked code or aren't total (AGENTS.md, Rules), and
 # `import Lean` in the library apps link (the claim commands are `meta import`ed).
@@ -21,7 +21,7 @@ lint:
 	@! grep -rnE 'implemented_by|@\[extern|skipKernelTC|native_decide|bv_decide|^\s*(private |public )?(partial|unsafe) def|\bsorry\b|^\s*axiom ' \
 	  lean/CairnAtproto lean/CairnAtproto.lean lean/CairnAtprotoProofs lean/CairnAtprotoProofs.lean \
 	  lean/CairnAtprotoTests lean/CairnAtprotoTests.lean lean/Fixtures.lean lean/FakePdsModel.lean \
-	  lean/FakeFuzz.lean \
+	  lean/FakeFuzz.lean lean/FakeApp.lean lean/FuzzMain.lean \
 	  || (echo "lint: forbidden construct (AGENTS.md, Rules)"; exit 1)
 	@! grep -rnE '^\s*(public )?import Lean' lean/CairnAtproto lean/CairnAtproto.lean \
 	  || (echo "lint: CairnAtproto must not import Lean"; exit 1)
@@ -59,6 +59,14 @@ fake-fuzz: build
 	mkdir -p build
 	lean/.lake/build/bin/fake-fuzz --sequences $(FUZZ_N) --steps $(FUZZ_STEPS) --seed $(FUZZ_SEED) --out build/fake-fuzz.json
 
+# `cairn fuzz FakeApp`: Cairn's fuzzer walks lean/FakeApp.lean through the runtime with the fake
+# PDS as its server (`Fake.server`), checking fake_app^6 against the world (README, "FakeApp").
+APP_N ?= 100
+APP_STEPS ?= 100
+APP_SEED ?= 1
+fuzz-app: build
+	cd lean && .lake/build/bin/fuzz FakeApp --iterations $(APP_N) --steps $(APP_STEPS) --seed $(APP_SEED) --out ../build/fuzz
+
 # The Lean model and the Bun server agree, request by request (tools/fake-pds/replay.ts).
 REPLAY_RUNS ?= 6
 REPLAY_STEPS ?= 300
@@ -70,7 +78,7 @@ fake-pds-replay: build
 fake-pds:
 	bun tools/fake-pds/server.ts
 
-check: lint build audit ledger kernel fixtures fake-fuzz fake-pds-replay
+check: lint build audit ledger kernel fixtures fake-fuzz fuzz-app fake-pds-replay
 
 clean:
 	rm -rf build lean/.lake/build
