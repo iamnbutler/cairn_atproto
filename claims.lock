@@ -30,3 +30,6 @@
 28	invariant	active	923f8819af6fa289	The cursor is never lost
 29	invariant	active	3ba3ab310d08d596	A refresh racing a load-more
 30	invariant	active	0b68743cdae010a2	The decoders read back what the encoders write
+31	invariant	active	8e857bbe96c4c020	The fake's writes are idempotent and read back
+32	invariant	active	223dde90a0d812fe	The fake's counts are its like records
+33	invariant	active	bff2981ff00840f1	The fake's notification pages are runs
