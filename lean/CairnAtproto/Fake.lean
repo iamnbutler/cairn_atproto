@@ -244,13 +244,17 @@ def parentRef (c : Config) (k : Nat) : Parent → StrongRef
   | .notFound => ⟨goneUri k, goneCid c k⟩
   | .blocked => ⟨blockedUri k, blockedCid c k⟩
 
+/-- Post `k`'s seeded like and repost counts: other accounts' before the fake started. -/
+def seededLikes (c : Config) (k : Nat) : Nat := pick c.seed 8 k 100
+def seededReposts (c : Config) (k : Nat) : Nat := pick c.seed 7 k 20
+
 /-- Post `k`'s view, with its record's `reply` when it is one: a function of the seed and `k`. -/
 def postView (c : Config) (k : Nat) : Post :=
   let at_ := iso (createdMs c k)
   { uri := postUri c k, cid := postCid c k, author := poster c k,
     text := postText c k, createdAt := at_, embed := embedOf c k,
-    replyCount := pick c.seed 6 k 5, repostCount := pick c.seed 7 k 20,
-    likeCount := pick c.seed 8 k 100, quoteCount := pick c.seed 9 k 3, indexedAt := at_,
+    replyCount := pick c.seed 6 k 5, repostCount := seededReposts c k,
+    likeCount := seededLikes c k, quoteCount := pick c.seed 9 k 3, indexedAt := at_,
     reply := (replyTarget c k).map fun p =>
       { root := parentRef c k (threadRoot c k), parent := parentRef c k p } }
 
@@ -1336,5 +1340,75 @@ def replies {S : Type} (cfg : Config) (hooks : Hooks S := {}) :
                        body := (String.fromUTF8? body).getD "" }
     return (hostReply (hooks.capture st id r) (s.handle req).2).2
   | _, _, _ => none
+
+/-! ## As a `cairn fuzz` server
+
+The pieces of `Cairn.Fuzz.Server World` (cairn#260, cairn 0.5.0): the server holds the whole
+`World` (the fake PDS and the host's Keychain), so a sequence's requests see one another's
+effects, writes included. README, "The fake PDS as a `cairn fuzz` server", has the definition
+of `Fake.server` that assembles them once a published cairn has `Cairn.Fuzz.Server`. -/
+
+/-- The post at `uri` on the timeline, if it is one. -/
+def Server.postAt? (s : Server) (uri : String) : Option Nat :=
+  match uri.splitOn "/" with
+  | [_, _, _, _, r] =>
+    if r.startsWith "3fk" then (digits 8 (r.drop 3).toString).bind fun k =>
+      if k < s.length && postUri s.cfg k == uri then some k else none
+    else none
+  | _ => none
+
+/-- Whether the tester's repo holds a like of the post at `uri` (the PDS's truth, which the
+AppView shows once it catches up). -/
+def World.likedBy (w : World) (uri : String) : Bool := !(w.server.now.myLikes uri).isEmpty
+
+/-- Whether the tester's repo holds a repost of the post at `uri`. -/
+def World.repostedBy (w : World) (uri : String) : Bool := !(w.server.now.myReposts uri).isEmpty
+
+/-- The post's like count once the AppView catches up: its seeded likes and every like record. -/
+def World.likeCount (w : World) (uri : String) : Nat :=
+  ((w.server.postAt? uri).map (seededLikes w.server.cfg)).getD 0
+    + w.server.now.likeCount uri
+
+/-- Whether the tester has muted the account `did`. -/
+def World.muted (w : World) (did : String) : Bool := w.server.now.muted.contains did
+
+/-- When the tester last marked notifications seen (ms since the epoch). -/
+def World.seenAt (w : World) : Option Nat := w.server.seenAt
+
+/-- A world for a sequence: a random configuration around `cfg` (its seed, base, arrival, life,
+act and lag drawn; its service kept). -/
+def worldGen (cfg : Config) : Gen World := do
+  let seed ← Gen.below 1000000
+  let base ← Gen.range 0 60
+  let life ← Gen.range 1 8
+  let arrival ← Gen.elem [0, 2, 3, 5]
+  let act ← Gen.elem [0, 2, 4, 8]
+  let lag ← Gen.elem [0, 1, 2, 5]
+  return World.init { cfg with seed, base, life, arrival, act, lag }
+
+/-- The requests the fake answers: XRPC over HTTP. Images stay with `replies`. -/
+def handles : Cairn.Request → Bool
+  | .http _ url .. => (pathOf url).startsWith "/xrpc/"
+  | _ => false
+
+/-- The server (and host) handle request `id`. -/
+def serve (w : World) (_id : Nat) (r : Cairn.Request) : Gen (World × Cairn.Reply) :=
+  pure (w.send r)
+
+/-- The world acting on its own: posts arriving, another account acting, the AppView catching
+up, the token expiring. -/
+def tick (w : World) : Gen World := do
+  let ctl ← Gen.oneOf [
+    (Control.post ·) <$> Gen.range 1 5,
+    do return .act (← Gen.elem [.like, .like, .repost, .follow]) (← Gen.below authorNames.length) none,
+    pure .catchup, pure .expire]
+  return { w with server := w.server.control ctl }
+
+/-- The world in words, for a failure's message. -/
+def World.describe (w : World) : String :=
+  let s := w.server
+  s!"fake PDS seed {s.cfg.seed}: {s.length} posts, request {s.count}, lag {s.lag}, " ++
+  s!"{s.log.length} changes ({s.seenLog.length} seen), records {s.now.repo.map (recUri s.cfg)}, " ++
+  s!"muted {s.now.muted}, seenAt {s.seenAt.map iso}"
 
 end CairnAtproto.Fake
