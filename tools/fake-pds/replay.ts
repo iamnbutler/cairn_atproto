@@ -9,7 +9,7 @@
 // reply carries, sends them back, and remembers the cursors it was given. Exit 0 iff they agreed.
 
 import { spawn, type Subprocess } from "bun";
-import { identifier, password, defaults, type Config } from "./model.ts";
+import { identifier, password, did, defaults, type Config } from "./model.ts";
 
 const argv = Bun.argv;
 const arg = (n: string, d: string) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
@@ -79,7 +79,8 @@ class BunSide {
   origin = "";
   constructor(readonly cfg: Omit<Config, "service">) {
     this.proc = spawn(["bun", `${here}/server.ts`, "--port", "0", "--quiet", "--seed", String(cfg.seed),
-                       "--base", String(cfg.base), "--arrival", String(cfg.arrival), "--life", String(cfg.life)],
+                       "--base", String(cfg.base), "--arrival", String(cfg.arrival), "--life", String(cfg.life),
+                       "--act", String(cfg.act), "--lag", String(cfg.lag)],
                       { stdout: "pipe", stderr: "inherit" });
   }
   async start(): Promise<string> {
@@ -125,20 +126,134 @@ class BunSide {
 class Host {
   items: Record<string, string> = {};
   cursors: string[] = [];
-  capture(a: Answer) {
+  /** listNotifications cursors. */
+  notices: string[] = [];
+  /** Posts seen in answers: their uri and cid. */
+  posts: { uri: string; cid: string }[] = [];
+  /** Record URIs putRecord answered with. */
+  records: string[] = [];
+  capture(path: string, a: Answer) {
     if (a.kind !== "json" || a.status < 200 || a.status >= 300) return;
     const b = a.body as Record<string, unknown>;
     if (typeof b?.accessJwt === "string" && typeof b?.refreshJwt === "string") {
       this.items.access = b.accessJwt;
       this.items.refresh = b.refreshJwt;
     }
-    if (typeof b?.cursor === "string") this.cursors.push(b.cursor);
+    if (path.includes("putRecord") && typeof b?.uri === "string") this.records.push(b.uri);
+    const notices = path.includes("listNotifications");
+    if (typeof b?.cursor === "string") (notices ? this.notices : this.cursors).push(b.cursor);
+    const add = (p: unknown) => {
+      const q = p as { uri?: unknown; cid?: unknown };
+      if (typeof q?.uri === "string" && typeof q?.cid === "string" && !this.posts.some((x) => x.uri === q.uri))
+        this.posts.push({ uri: q.uri, cid: q.cid });
+    };
+    if (Array.isArray(b?.feed)) for (const it of b.feed as { post?: unknown }[]) add(it?.post);
+    if (Array.isArray(b?.posts)) for (const p of b.posts) add(p);
   }
 }
 
 // ---- One random step ----
 
-type Step = { req: Req; auth?: "access" | "refresh" | "garbage" | "none"; cursor?: number; slow?: number };
+type Step = { req: Req; auth?: "access" | "refresh" | "garbage" | "none"; cursor?: number; notice?: number; slow?: number;
+               /** Fills the request from what the host has seen (both hosts have seen the same). */
+               fill?: (h: Host, r: Req) => void;
+               /** Sign in first (so the new endpoints are reached with a live token). */
+               signIn?: boolean };
+
+const AUTHOR_HANDLES = ["ada", "zoe", "lei", "sam", "noor", "kit"];
+// A few record keys, so writes repeat (and some are not valid keys).
+const RKEYS = ["3l2aaaaaaaa2a", "3l2aaaaaaaa3b", "3l2aaaaaaaa4c", "3l2bbbbbbbb2a", "self", "a.b:c~d-e_f", ".", "..", "has/slash", "", "x".repeat(513)];
+
+function writeStep(g: Rng, cfg: Config): Step {
+  const x = "/xrpc/";
+  const me = did(cfg);
+  const repo = g.chance(9, 10) ? me : g.elem(["did:plc:fakeauthorada", identifier(cfg)]);
+  const rkey = g.chance(9, 10) ? g.elem(RKEYS.slice(0, 4)) : g.elem(RKEYS);
+  const at = g.elem(["2026-10-02T00:00:00.000Z", "2026-10-03T12:00:00.000Z"]);
+  const kind = g.elem(["like", "like", "repost", "follow", "other"]);
+  const collection = { like: "app.bsky.feed.like", repost: "app.bsky.feed.repost", follow: "app.bsky.graph.follow", other: "app.bsky.feed.post" }[kind]!;
+  const pi = g.below(1000);
+  const target = g.elem(AUTHOR_HANDLES);
+  const auth = g.chance(19, 20) ? "access" : g.elem(["none", "garbage", "refresh"]) as Step["auth"];
+  switch (g.below(4)) {
+    case 0: case 1: {
+      const broken = g.chance(1, 20);
+      const step: Step = { req: { method: "POST", path: x + "com.atproto.repo.putRecord" }, auth };
+      step.fill = (h, r) => {
+        const p = h.posts.length > 0 ? h.posts[pi % h.posts.length] : { uri: "at://did:plc:nobody/app.bsky.feed.post/3fk00000000", cid: "bafynone" };
+        const record = kind === "follow" ? { $type: collection, subject: `did:plc:fakeauthor${target}`, createdAt: at }
+          : kind === "other" ? { $type: collection, text: "hi", createdAt: at }
+          : { $type: collection, subject: p, createdAt: at };
+        r.body = broken ? "{\"repo\": 1}" : JSON.stringify({ repo, collection, rkey, record });
+      };
+      return step;
+    }
+    case 2: {
+      const col = g.elem(["app.bsky.feed.like", "app.bsky.feed.repost", "app.bsky.graph.follow"]);
+      return { req: { method: "POST", path: x + "com.atproto.repo.deleteRecord", body: g.chance(1, 20) ? "[]" : JSON.stringify({ repo, collection: col, rkey }) }, auth };
+    }
+    default: {
+      const col = g.elem(["app.bsky.feed.like", "app.bsky.feed.repost", "app.bsky.graph.follow", "app.bsky.feed.post"]);
+      const ps = g.chance(1, 15) ? `repo=${encodeURIComponent(repo)}` : `repo=${encodeURIComponent(repo)}&collection=${col}&rkey=${encodeURIComponent(rkey)}`;
+      const step: Step = { req: { method: "GET", path: x + "com.atproto.repo.getRecord?" + ps }, auth };
+      if (g.chance(1, 2)) step.fill = (h, r) => {
+        const u = h.records.at(-1);
+        if (u === undefined) return;
+        const [, , repo, col, rkey] = u.split("/");
+        r.path = x + `com.atproto.repo.getRecord?repo=${encodeURIComponent(repo)}&collection=${col}&rkey=${encodeURIComponent(rkey)}`;
+      };
+      return step;
+    }
+  }
+}
+
+function readStep(g: Rng, cfg: Config): Step {
+  const x = "/xrpc/";
+  const auth = g.chance(19, 20) ? "access" : g.elem(["none", "garbage"]) as Step["auth"];
+  const actor = () => {
+    const a = g.elem(AUTHOR_HANDLES);
+    return g.elem([`${a}.fake.test`, `did:plc:fakeauthor${a}`, `${a}.fake.test`, identifier(cfg), did(cfg), "nobody.test"]);
+  };
+  switch (g.below(8)) {
+    case 0: case 1:
+      return { req: { method: "POST", path: x + g.elem(["app.bsky.graph.muteActor", "app.bsky.graph.muteActor", "app.bsky.graph.unmuteActor"]),
+                      body: g.chance(1, 20) ? "{}" : JSON.stringify({ actor: actor() }) }, auth };
+    case 2:
+      return { req: { method: "GET", path: x + "app.bsky.actor.getProfile?" + (g.chance(1, 15) ? "" : "actor=" + encodeURIComponent(actor())) }, auth };
+    case 3: {
+      const n = g.elem([1, 2, 3, 26]);
+      const idx = Array.from({ length: n }, () => g.below(1000));
+      const junk = g.chance(1, 10);
+      const step: Step = { req: { method: "GET", path: x + "app.bsky.feed.getPosts?" }, auth };
+      step.fill = (h, r) => {
+        const uris = idx.map((i) => h.posts.length > 0 ? h.posts[i % h.posts.length].uri : "at://did:plc:nobody/app.bsky.feed.post/3fk00000000");
+        if (junk) uris.push("at://did:plc:fakeauthorada/app.bsky.feed.post/3fk99999999", "garbage");
+        r.path += uris.map((u) => "uris=" + encodeURIComponent(u)).join("&");
+      };
+      return step;
+    }
+    case 4: case 5: {
+      const ps: string[] = [];
+      const l = g.below(10);
+      if (l < 6) ps.push(`limit=${g.elem(["1", "2", "3", "5", "10", "50"])}`);
+      else if (l === 6) ps.push(`limit=${g.elem(["0", "101", "abc"])}`);
+      const step: Step = { req: { method: "GET", path: x + "app.bsky.notification.listNotifications?" + ps.join("&") }, auth };
+      const c = g.below(10);
+      if (c < 4) step.notice = -1;
+      else if (c < 6) step.notice = g.below(1000);
+      else if (c === 6) step.req.path += (ps.length ? "&" : "") + "cursor=" + g.elem(["0", "garbage", "999999999", "1x"]);
+      return step;
+    }
+    case 6:
+      return { req: { method: "GET", path: x + "app.bsky.notification.getUnreadCount" }, auth };
+    default: {
+      const seen = g.elem(["2026-10-01T00:00:00.000Z", "2026-10-01T00:30:00Z", "2026-10-02T00:00:00.000Z", "2030-01-01T00:00:00.000+02:00",
+                           "2026-09-30T23:59:59.999Z", "yesterday", "2026-13-01T00:00:00Z"]);
+      const body = g.chance(1, 15) ? "{}" : JSON.stringify({ seenAt: seen });
+      return { req: { method: "POST", path: x + "app.bsky.notification.updateSeen", body }, auth };
+    }
+  }
+}
 
 function randomStep(g: Rng, cfg: Config): Step {
   const x = "/xrpc/";
@@ -149,7 +264,20 @@ function randomStep(g: Rng, cfg: Config): Step {
     else if (l === 6) ps.push(`limit=${g.elem(["0", "101", "abc", "", "007", "1e2", "-1"])}`);
     return ps;
   };
-  switch (g.below(20)) {
+  switch (g.below(30)) {
+    case 20: case 21: case 22: case 23: return { ...writeStep(g, cfg), signIn: g.chance(1, 2) };
+    case 24: case 25: case 26: return { ...readStep(g, cfg), signIn: g.chance(1, 2) };
+    case 27: {
+      const ps = [`kind=${g.elem(["like", "repost", "follow", "like", "bogus"])}`, `actor=${g.elem([0, 1, 2, 3, 4, 5, 6])}`];
+      if (g.chance(1, 2)) ps.push(`post=${g.elem([String(g.below(80)), "abc", "99999"])}`);
+      return { req: { method: "POST", path: "/control/act?" + ps.join("&") } };
+    }
+    case 28:
+      return { req: { method: "POST", path: g.elem([`/control/lag?n=${g.elem([0, 1, 3, 8])}`, "/control/catchup", "/control/lag?n=x"]) } };
+    case 29: {
+      const kind = g.elem(["400", "lost-after", "lost-after"]);
+      return { req: { method: "POST", path: `/control/fail?n=${1 + g.below(2)}&kind=${kind}` } };
+    }
     case 0: case 1: {
       const ok = g.chance(3, 4);
       const body = g.chance(1, 10) ? "not json"
@@ -204,6 +332,11 @@ function realize(s: Step, h: Host): Req {
     const c = s.cursor < 0 ? h.cursors[h.cursors.length - 1] : h.cursors[s.cursor % h.cursors.length];
     r.path += (r.path.endsWith("?") ? "" : "&") + "cursor=" + encodeURIComponent(c);
   }
+  if (s.notice !== undefined && h.notices.length > 0) {
+    const c = s.notice < 0 ? h.notices[h.notices.length - 1] : h.notices[s.notice % h.notices.length];
+    r.path += (r.path.endsWith("?") ? "" : "&") + "cursor=" + encodeURIComponent(c);
+  }
+  s.fill?.(h, r);
   return r;
 }
 
@@ -230,7 +363,8 @@ let failures = 0;
 for (let run = 0; run < runs; run++) {
   const seed = seed0 * 1000 + run;
   const g = new Rng(seed);
-  const base = { ...defaults, seed, base: 10 + g.below(50), arrival: g.elem([0, 2, 3, 5]), life: 1 + g.below(8) };
+  const base = { ...defaults, seed, base: 10 + g.below(50), arrival: g.elem([0, 2, 3, 5]), life: 1 + g.below(8),
+                 act: g.elem([0, 2, 4, 8]), lag: g.elem([0, 1, 2, 5]) };
   const bun = new BunSide(base);
   let lean: LeanSide | undefined;
   try {
@@ -241,6 +375,15 @@ for (let run = 0; run < runs; run++) {
     let agreed = true;
     for (let i = 0; i < steps; i++) {
       const step = randomStep(g, cfg);
+      if (step.signIn) {
+        const r: Req = { method: "POST", path: "/xrpc/com.atproto.server.createSession",
+                         body: JSON.stringify({ identifier: identifier(cfg), password: password(cfg) }) };
+        const al = await lean.send(r), ab = await bun.send(r, TIMEOUT_MS);
+        const diff = same(al, ab);
+        if (diff) { failures++; agreed = false; console.log(`run ${run} (seed ${seed}) step ${i}: sign-in: ${diff}`); break; }
+        hl.capture(r.path, al);
+        hb.capture(r.path, ab);
+      }
       const rl = realize(step, hl), rb = realize(step, hb);
       if (JSON.stringify(rl) !== JSON.stringify(rb)) throw new Error(`step ${i}: the hosts diverged: ${JSON.stringify(rl)} vs ${JSON.stringify(rb)}`);
       const al = await lean.send(rl);
@@ -253,8 +396,8 @@ for (let run = 0; run < runs; run++) {
         console.log(`run ${run} (seed ${seed}) step ${i}: ${rl.method} ${rl.path}: ${diff}`);
         break;
       }
-      hl.capture(al);
-      hb.capture(ab);
+      hl.capture(rl.path, al);
+      hb.capture(rb.path, ab);
     }
     const sl = await lean.send({ method: "GET", path: "/control/state" });
     const sb = await bun.send({ method: "GET", path: "/control/state" }, 2000);

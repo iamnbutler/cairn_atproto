@@ -1,7 +1,8 @@
 // The fake PDS over HTTP on 127.0.0.1 (cairn#208). Its behaviour is model.ts, a port of the Lean
 // model (lean/CairnAtproto/Fake.lean); replay.ts checks that the two agree.
 //
-//   bun tools/fake-pds/server.ts [--port 2583] [--seed N] [--base 40] [--arrival 3] [--life 6] [--quiet]
+//   bun tools/fake-pds/server.ts [--port 2583] [--seed N] [--base 40] [--arrival 3] [--life 6]
+//                                [--act 4] [--lag 2] [--quiet]
 //
 // It accepts one test identifier and app password, generated from the seed (random unless
 // --seed) and printed at start. Tokens are fake markers; nothing here is a real credential, and
@@ -9,8 +10,15 @@
 //   POST /control/post?n=3              n posts arrive at the head
 //   POST /control/expire                the access token expires now
 //   POST /control/revoke                the session ends: its refresh token is refused too
-//   POST /control/fail?n=2&kind=500     the next n calls fail: 500, 503, 429 or timeout
+//   POST /control/fail?n=2&kind=500     the next n calls fail: 500, 503, 429, timeout or 400
+//                                       (not applied), or lost-after (applied, reply lost)
 //   POST /control/slow?ms=800           every XRPC reply waits ms (0: no delay)
+//   POST /control/act?kind=like&actor=2&post=17
+//                                       another account (0-5: ada zoe lei sam noor kit) likes,
+//                                       reposts or follows; again takes it back. post defaults
+//                                       to the tester's newest post
+//   POST /control/lag?n=5               the AppView sees a change 0 to n requests after it
+//   POST /control/catchup               the AppView sees everything now
 //   GET  /control/state                 the server's state
 
 import { deflateSync } from "node:zlib";
@@ -113,7 +121,8 @@ const http = Bun.serve({
 });
 
 const cfg: Config = { ...defaults, seed, service: `http://127.0.0.1:${http.port}`,
-  base: num("base", defaults.base), arrival: num("arrival", defaults.arrival), life: num("life", defaults.life) };
+  base: num("base", defaults.base), arrival: num("arrival", defaults.arrival), life: num("life", defaults.life),
+  act: num("act", defaults.act), lag: num("lag", defaults.lag) };
 model = new Server(cfg);
 
 console.log(`fake-pds listening on ${cfg.service}`);
