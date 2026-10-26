@@ -5,7 +5,7 @@ package cairn_atproto where
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`relaxedAutoImplicit, false⟩,
     ⟨`weak.cairn.claims.scope, "cairn_atproto"⟩]
 
-require "iamnbutler" / "cairn" @ "^0.3.0"
+require "iamnbutler" / "cairn" @ "^0.5.0"
 require "iamnbutler" / "cairn_json" @ "^0.1.0"
 
 /-- The code apps link. -/
@@ -35,3 +35,14 @@ lean_exe «fake-pds-model» where
 no token reaches Lean (`atproto.no-token`, claim ^10). -/
 lean_exe «fake-fuzz» where
   root := `FakeFuzz
+
+/-- A small app on the session machine whose `cairn fuzz` server is the fake PDS
+(`Fake.server`, lean/FakeApp.lean). Its claims are in their own scope, `fake_app`; never linked. -/
+lean_lib FakeApp where
+  roots := #[`FakeApp]
+  leanOptions := #[⟨`weak.cairn.claims.scope, "fake_app"⟩]
+
+/-- `lake exe fuzz` (`cairn fuzz`): Cairn's claim-driven fuzzer on this package's machines,
+FakeApp's with the fake PDS as its server. -/
+lean_exe fuzz where
+  root := `FuzzMain
