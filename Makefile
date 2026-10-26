@@ -60,8 +60,8 @@ fake-fuzz: build
 	lean/.lake/build/bin/fake-fuzz --sequences $(FUZZ_N) --steps $(FUZZ_STEPS) --seed $(FUZZ_SEED) --out build/fake-fuzz.json
 
 # The Lean model and the Bun server agree, request by request (tools/fake-pds/replay.ts).
-REPLAY_RUNS ?= 4
-REPLAY_STEPS ?= 200
+REPLAY_RUNS ?= 6
+REPLAY_STEPS ?= 300
 REPLAY_SEED ?= 1
 fake-pds-replay: build
 	bun tools/fake-pds/replay.ts --runs $(REPLAY_RUNS) --steps $(REPLAY_STEPS) --seed $(REPLAY_SEED)

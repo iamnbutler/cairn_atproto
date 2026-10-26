@@ -4,7 +4,7 @@ import CairnAtproto
 for `tools/fake-pds/replay.ts`, which sends the same requests to it and to the Bun server and
 compares the answers.
 
-The first line is the configuration, `{"seed", "service", "base", "arrival", "life"}`. Every
+The first line is the configuration, `{"seed", "service", "base", "arrival", "life", "act", "lag"}`. Every
 later line is a request, `{"method", "path", "authorization"?, "body"?}`, answered by one line:
 `{"status", "headers", "body", "delayMs"}` (the body as JSON), `{"png": [w, h]}` or
 `{"hang": true}`. It reads until end of input. -/
@@ -15,7 +15,8 @@ def num (j : Json) (k : String) (d : Nat) : Nat := (j.nat? k).getD d
 
 def configOf (j : Json) : Config :=
   { seed := num j "seed" 0, service := (j.str? "service").getD "http://127.0.0.1:2583",
-    base := num j "base" 40, arrival := num j "arrival" 3, life := num j "life" 6 }
+    base := num j "base" 40, arrival := num j "arrival" 3, life := num j "life" 6,
+    act := num j "act" 4, lag := num j "lag" 2 }
 
 def answer : Response → Json
   | .json st hs body d => .obj [("status", Json.ofNat st),

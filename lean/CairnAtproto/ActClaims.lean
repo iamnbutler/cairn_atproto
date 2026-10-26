@@ -5,11 +5,13 @@ meta import Cairn.Claims.Elab
 public import CairnAtproto.Proofs.Tid
 public import CairnAtproto.Proofs.Paged
 public import CairnAtproto.Proofs.Acts
+public import CairnAtproto.Proofs.Fake
 
 /-! # Acting's claims
 
-The claims about acting on Bluesky (`cairn_atproto^17`–`^30`): record keys, writes and how their
-replies are read, the paged list, the decoders, and what the client assumes of the server.
+The claims about acting on Bluesky (`cairn_atproto^17`–`^33`): record keys, writes and how their
+replies are read, the paged list, the decoders, what the client assumes of the server, and what
+the fake PDS (`CairnAtproto.Fake`) proves of itself.
 
 Record keys are stated over a harness `machine` whose state is a TID minter and the keys it has
 minted, newest first, and whose one move mints a key at any clock reading. The other invariants
@@ -33,6 +35,9 @@ depend on it.
 | ^28 | invariant | the cursor is never lost |
 | ^29 | invariant | a refresh racing a load-more ends the same in either order |
 | ^30 | invariant | the decoders read back what the encoders write |
+| ^31 | invariant | the fake's writes are idempotent and getRecord reads them back |
+| ^32 | invariant | the fake's like and repost counts are the records', with the viewer's from the same moment |
+| ^33 | invariant | the fake's notification pages are contiguous runs, newest first |
 
 The assumptions' checks run against the fake PDS once it holds a repo (cairn#251, which proves
 them of its Lean model) and once against the real network with the installed app (cairn#258). -/
@@ -237,6 +242,33 @@ invariant ^30 readsBackInv "The decoders read back what the encoders write" for 
   init := readsBack
   step := fun _ _ _ => readsBack
   receive := fun _ _ _ => readsBack
+
+/-! ## The fake PDS (cairn#251)
+
+What the fake's Lean model proves of itself (`CairnAtproto.Proofs.Fake`), so the assumptions
+^22–^24 hold of it by proof; `make fake-fuzz` checks them, and ^25, through the session and the
+host, and `make fake-pds-replay` checks that the Bun server answers as the model does. -/
+
+invariant ^31 fakeWrites "The fake's writes are idempotent and read back" for machine where
+  does "In the fake PDS's model, a putRecord sent twice leaves the server as once, and so does a deleteRecord; deleting a record that isn't there changes nothing; after a 200 putRecord the repo holds the record at its key, after a 200 deleteRecord it holds none; and getRecord answers the record the repo holds now, RecordNotFound when there is none, whatever the AppView's lag. So ^22 and ^23 hold of the fake."
+  holds _s := Fake.WritesHold
+  init := Fake.writesHold
+  step := fun _ _ _ => Fake.writesHold
+  receive := fun _ _ _ => Fake.writesHold
+
+invariant ^32 fakeCounts "The fake's counts are its like records" for machine where
+  does "In the fake PDS's model, a post view's like count is its seeded likes plus every like record the AppView shows (other accounts' and the tester's), and viewer.like is set exactly when the tester's like is among them; the same for reposts. Counts and viewer state come from one run of the log, so ^24 holds of the fake."
+  holds _s := Fake.CountsHold
+  init := Fake.countsHold
+  step := fun _ _ _ => Fake.countsHold
+  receive := fun _ _ _ => Fake.countsHold
+
+invariant ^33 fakeNotices "The fake's notification pages are runs" for machine where
+  does "In the fake PDS's model, a listNotifications page is a contiguous run of the notifications the AppView shows, newest first: the head page is the newest, and the page from a cursor is the next ones after it, none skipped or repeated. New notifications only arrive at the head, so a cursor keeps meaning the same place."
+  holds _s := Fake.NoticesRun
+  init := Fake.noticesRun
+  step := fun _ _ _ => Fake.noticesRun
+  receive := fun _ _ _ => Fake.noticesRun
 
 def claimInfos : List ClaimInfo := claims%
 
