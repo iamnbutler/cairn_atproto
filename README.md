@@ -269,9 +269,13 @@ The acting claims are in `CairnAtproto.ActClaims`, over a harness machine whose 
 | `cairn_atproto^28` | invariant | a paged list not at its end never loses its cursor (`CursorKept`) |
 | `cairn_atproto^29` | invariant | a refresh and a load-more answered in either order end the same (`race`) |
 | `cairn_atproto^30` | invariant | the acting decoders read back what their encoders write (`ReadsBack`) |
+| `cairn_atproto^31` | invariant | the fake PDS's writes are idempotent, and getRecord reads the repo as it is now (`Fake.WritesHold`) |
+| `cairn_atproto^32` | invariant | the fake's like and repost counts are its records', the viewer's own exactly when `viewer` says so (`Fake.CountsHold`) |
+| `cairn_atproto^33` | invariant | the fake's notification pages are contiguous runs, newest first (`Fake.NoticesRun`) |
 
-The checks of `^22`–`^25` run against the fake PDS once it serves writes (cairn#251) and once
-against the real network (cairn#258).
+The checks of `^22`–`^25` run against the fake PDS in `make fake-fuzz` (below, "The fake PDS"),
+which proves `^22`–`^24` of itself (`^31`–`^33`). Bluesky's own servers are another matter: all
+four are still to be checked once against the real network with the installed app (cairn#258).
 
 Retired in 0.2.0: ^5–^8 (their statements changed when requests became Cairn's `Request` and the
 session gained `cancel`; the same claims are now ^11–^14) and ^10 (its text said the trusted-base
@@ -349,26 +353,54 @@ sizes). Neither holds a real credential or talks to the network.
 
 | | |
 |---|---|
-| Timeline | grows only at its head: post `k` (from the oldest) is `postAt cfg k`, a function of the seed and `k`; 1–3 posts arrive after an XRPC request with chance `1/arrival`, or on `POST /control/post?n=`. About one post in four is a reply (`replyTarget`): to an older post (with its thread's root, and the grandparent's author when the parent is itself a reply), to a deleted post (`notFoundPost`) or to a blocked one (`blockedPost`); the record carries `reply` too |
-| `getTimeline` | `limit` 1–100 (default 50), newest first; `cursor` is opaque (`<createdAt>::<cid>` of the page's oldest post), absent at the end, and stays valid as posts arrive; a bad one is 400 `InvalidRequest` |
+| Timeline | grows only at its head: post `k` (from the oldest) is `postAt cfg k`, a function of the seed and `k`; 1–3 posts arrive after an XRPC request with chance `1/arrival`, or on `POST /control/post?n=`. About one post in four is a reply (`replyTarget`): to an older post (with its thread's root, and the grandparent's author when the parent is itself a reply), to a deleted post (`notFoundPost`) or to a blocked one (`blockedPost`); the record carries `reply` too. About one in four is the tester's own (`isMine`); some quote an older post or mention the tester |
+| `getTimeline` | `limit` 1–100 (default 50), newest first; `cursor` is opaque (`<createdAt>::<cid>` of the page's oldest post), absent at the end, and stays valid as posts arrive; a bad one is 400 `InvalidRequest`. Leaves out posts by muted accounts and reposts by them |
 | `createSession` | one identifier and app password, from the seed (`Config.identifier`, `Config.password`); otherwise 401 `AuthenticationRequired` |
 | Tokens | a generation per sign-in or refresh. The access token serves 1 to `life` calls, then 400 `ExpiredToken`; `refreshSession` rotates both and refuses the old refresh token (400 `InvalidToken`). A token is a marker, `fakepds-token.<kind>.<gen>.<nonce>` |
-| Faults | `POST /control/fail?n=&kind=500\|503\|429\|timeout` (the next `n` calls), `/control/slow?ms=`, `/control/expire`, `/control/revoke`; `GET /control/state` |
+| The tester's repo | `putRecord` of a like, repost or follow (`repo` the tester's DID, any valid record key): 200 `{uri, cid}`; the same record at the same key again changes nothing and answers the same. Another repo, a bad key or another collection: 400 `InvalidRequest`. `deleteRecord`: 200, there or not. `getRecord`: the record, or 400 `RecordNotFound`; it reads the repo as it is now, never lagging |
+| Mutes and profiles | `muteActor`, `unmuteActor` (handle or DID of one of the other accounts; not the tester): 200, and the timeline leaves their posts out. `getProfile`: `ProfileDetail` with the viewer's `muted` and `following` (the follow record's URI) |
+| Viewer state | posts in `getTimeline` and `getPosts` (≤ 25 `uris`) carry `likeCount`/`repostCount` (seeded counts plus every like and repost record) and `viewer.like`/`viewer.repost` (the tester's record's URI), all from one moment |
+| Other accounts | after each XRPC request, with chance `1/act`, one of the six other accounts likes or reposts a post or follows the tester, or takes back what it did; or on `POST /control/act` |
+| The AppView's lag | each change (a write, a mute, another account's act, a post that notifies) is seen by the AppView 0 to `lag` XRPC requests later, never before an earlier change: views (timeline, `getPosts`, `getProfile`, notifications) show a prefix of the changes. `POST /control/lag?n=` sets it; `/control/catchup` shows everything now |
+| Notifications | `listNotifications` (`limit` 1–100, default 50; newest first; `cursor` opaque, absent at the end): likes, reposts and quotes of the tester's posts, replies to them, mentions, follows. `isRead` is by `seenAt`. `getUnreadCount`; `updateSeen` (`seenAt` a datetime, else 400) |
+| Faults | `POST /control/fail?n=&kind=500\|503\|429\|timeout\|400\|lost-after` (the next `n` calls: `400` is refused before anything is applied; `lost-after` applies the call and never replies), `/control/slow?ms=`, `/control/expire`, `/control/revoke`; `GET /control/state` |
 | Images | `GET /img/<w>x<h>/<name>.png`: a PNG of that size (avatars and embeds point here) |
-| Other methods | 501 `MethodNotImplemented` (`getAuthorFeed` too, for now) |
+| Other methods | 501 `MethodNotImplemented` (`getAuthorFeed` too, for now); a method with the wrong HTTP verb is 400 before its token is checked |
+
+The control calls, all on the server's origin:
+
+| Call | Does |
+|---|---|
+| `POST /control/post?n=3` | `n` posts arrive at the head (with their notifications) |
+| `POST /control/act?kind=like&actor=2&post=17` | account `actor` (0–5: ada, zoe, lei, sam, noor, kit) does `kind` (`like`, `repost`, `follow`) on post `post`, by default the tester's newest; again takes it back |
+| `POST /control/lag?n=5` | the AppView sees a change 0 to `n` requests after it, from now on |
+| `POST /control/catchup` | the AppView sees every change now |
+| `POST /control/fail?n=2&kind=lost-after` | the next `n` calls fail (above, "Faults") |
+| `POST /control/slow?ms=800` | every XRPC reply waits `ms` |
+| `POST /control/expire`, `/control/revoke` | the access token expires; the session ends |
+| `GET /control/state` | counts: posts, requests, the log and how much of it the AppView sees, the repo's record URIs, mutes, others' likes, reposts and follows, `seenAt` |
+
+The server's flags: `--port 2583 --seed N --base 40 --arrival 3 --life 6 --act 4 --lag 2
+--quiet` (`--act 0`: nobody else acts on their own; `--lag 0`: no lag).
 
 What is proved (`CairnAtproto.Proofs.Fake`): a request keeps the configuration and never
 shortens the timeline (`Server.handle_cfg`, `Server.handle_length`), so the timeline after it
 extends the one before at its head (`Server.handle_timeline`, with `timeline_extends`); a page is
-a contiguous run of the timeline (`page_feed`, `page_head`).
+a contiguous run of the timeline (`page_feed`, `page_head`), and so is a page with muted accounts
+left out (`pageWhere_run`). Writes are idempotent, `getRecord` reads them, a missing delete
+changes nothing (`WritesHold`, `^31`); a post's counts are its records' and its viewer state is
+from the same facts (`CountsHold`, `^32`); a notification page is a contiguous run, newest first
+(`NoticesRun`, `^33`).
 
 **In Lean.** `Fake.Server.handle` answers a request; `Fake.World` adds the host: the Keychain
 (which token each item holds, `World.generation`) and cairn#205's capture (a 2xx JSON object, all
 or nothing, the fields blanked before Lean sees the body), so `World.send` takes the session
 machine's `Cairn.Request` and gives the `Cairn.Reply` Lean receives. `lake exe fake-pds-model` is the
-model over JSON lines, for the replay.
+model over JSON lines, for the replay. The server keeps one log of changes (`Server.log`); the
+repo as it is (`Server.now`) is all of it, what the AppView shows (`Server.seen`) is the prefix it
+has caught up with.
 
-**In `cairn fuzz`.** `Fake.replies cfg hooks` has the type of `Cairn.Fuzz.Custom.replies`:
+**In `cairn fuzz`, stateless.** `Fake.replies cfg hooks` has the type of `Cairn.Fuzz.Custom.replies`:
 
 ```lean
 def fuzz : Cairn.Fuzz.Custom State where
@@ -386,19 +418,75 @@ carries (its `secret`'s Keychain item, none without one) and what the host captu
 `replyHasMarker` finds a token that wasn't captured. Images on the fake are answered with their
 size.
 
+**In `cairn fuzz`, as a server** (cairn#260's `Custom.server`, in cairn 0.5.0). The fake has the
+pieces of a `Cairn.Fuzz.Server World`, whose world is the whole `Fake.World` (the PDS and the
+host's Keychain), so writes, likes and mutes persist through a sequence: `Fake.worldGen cfg`
+(a configuration drawn per sequence: seed, base, arrival, life, act, lag), `Fake.handles` (XRPC
+requests; images stay with `replies`), `Fake.serve` (`World.send`), `Fake.tick` (posts arrive,
+another account acts, the AppView catches up, the token expires) and `World.describe`. The
+accessors for an app's checks read the repo as it is (what the AppView shows once it catches
+up): `World.likedBy w uri`, `World.repostedBy w uri`, `World.likeCount w uri` (seeded likes plus
+like records), `World.muted w did`, `World.seenAt w`.
+
+The published cairn this package requires (`^0.3.0`; the registry has up to 0.4.1) has no
+`Cairn.Fuzz.Server`, so `Fake.server` itself waits for cairn 0.5.0. Once that is published,
+bump `require "iamnbutler" / "cairn"` and add, in `CairnAtproto/Fake.lean` (with
+`public import Cairn.Fuzz.Rng`):
+
+```lean
+/-- The fake PDS as a `cairn fuzz` server (cairn#260). -/
+def server {S : Type} (cfg : Config := {})
+    (checks drained : List (Cairn.ClaimId × (S → World → Bool)) := []) : Cairn.Fuzz.Server S where
+  W := World
+  init := worldGen cfg
+  handles := handles
+  handle := serve
+  tick := tick
+  checks := checks
+  drained := drained
+  describe := World.describe
+```
+
+It type-checks, and the whole package builds, against cairn's main (0.5.0, unreleased). An app
+then plugs it in, keeping `replies` for images (the check here is an example, for an app
+whose state lists posts with a `liked` flag):
+
+```lean
+def fuzz : Cairn.Fuzz.Custom State where
+  replies := CairnAtproto.Fake.replies {} { phase := fun s => some s.session.phase }
+  server := some (CairnAtproto.Fake.server {}
+    (drained := [(52, fun s w => s.posts.all fun p => p.liked == w.likedBy p.uri)]))
+```
+
+`retransmit` stays off: a retransmitted `refreshSession` is refused after the first rotated the
+tokens, a refusal that did something.
+
 **`atproto.no-token`** (`make fake-fuzz`, in `make check`; claim `^15`'s check): the session
 machine against `Fake.World` in random sequences (sign-ins with right and wrong passwords,
-resumes, calls, cancels, sign-outs; replies in any order, lost after the server handled them, or
-failed before it; posts arriving, tokens expiring and revoked, faults), searching after every step
-the reply handed to Lean, the session's state and everything it put out for a token marker. It
-then runs the same sequences with the host's capture off, which must find markers. It also
-decodes every page and checks that no cancelled call is answered. The report is
-`build/fake-fuzz.json`.
+resumes, calls, writes, mutes, reads, cancels, sign-outs; replies in any order, lost after the
+server handled them, or failed before it; posts arriving, other accounts acting, the AppView
+lagging, tokens expiring and revoked, faults), searching after every step the reply handed to
+Lean, the session's state and everything it put out for a token marker. It then runs the same
+sequences with the host's capture off, which must find markers. It also decodes every page and
+checks that no cancelled call is answered. The report is `build/fake-fuzz.json`.
+
+**The assumptions' checks**, in the same run (each must see cases and no violation; the report's
+`assumptions`):
+
+| Check | Claim | Against the fake |
+|---|---|---|
+| `atproto.idempotent-writes` | `^22` | every 2xx write (put, delete, mute, unmute, updateSeen) sent again, on a copy of the world, leaves the repo, mutes and `seenAt` as they were |
+| `atproto.read-your-writes` | `^23` | after every 2xx `putRecord`, `getRecord` (on a copy) answers the record written; after every 2xx `deleteRecord`, `RecordNotFound`; whatever the lag |
+| `atproto.count-viewer` | `^24` | every post view the app is handed (timeline, `getPosts`) has the counts of the moment it was served, the tester's like (repost) counted exactly when `viewer.like` (`.repost`) is set |
+| `atproto.expired-not-applied` | `^25` | every write answered 400 `ExpiredToken` changed nothing |
+
+These say the fake behaves as the client assumes Bluesky does. That Bluesky does is cairn#258's:
+the same four checks, once, against the real network with the installed app.
 
 ### Running Sky against the fake PDS
 
 ```sh
-make fake-pds                         # = bun tools/fake-pds/server.ts (port 2583; --port, --seed)
+make fake-pds                         # = bun tools/fake-pds/server.ts (port 2583; --port, --seed, --act, --lag)
 # fake-pds listening on http://127.0.0.1:2583
 # seed 1234…
 # identifier tester-abcd.fake.test
@@ -407,8 +495,19 @@ defaults write <Sky's bundle id> service http://127.0.0.1:2583
 ```
 
 Sky reads `service` with `readDefault`; sign in on its sign-in screen with the printed identifier
-and app password. `curl -X POST 'http://127.0.0.1:2583/control/fail?n=3&kind=timeout'` and the
-other control endpoints drive it from outside. `defaults delete <Sky's bundle id> service` and
+and app password. The control calls drive it from outside, for example:
+
+```sh
+curl -X POST 'http://127.0.0.1:2583/control/fail?n=3&kind=timeout'   # the next 3 calls time out
+curl -X POST 'http://127.0.0.1:2583/control/act?kind=like&actor=1'   # zoe likes your newest post
+curl -X POST 'http://127.0.0.1:2583/control/lag?n=8'                 # the AppView falls behind
+curl -X POST 'http://127.0.0.1:2583/control/fail?n=1&kind=lost-after' # the next write applies, its reply is lost
+curl -X POST 'http://127.0.0.1:2583/control/catchup'
+curl 'http://127.0.0.1:2583/control/state'
+```
+
+Sky's likes, reposts, follows and mutes write to the tester's repo there; notifications come
+from the tester's posts being liked, reposted, quoted and replied to. `defaults delete <Sky's bundle id> service` and
 the same build talks to the real network again. Stop the server with Ctrl-C.
 
 **Real credentials go only into the running app's sign-in screen**: never into a file, fixture,
@@ -432,6 +531,16 @@ For Sky's M5 (cairn#249, cairn#250, cairn#236). Not yet published; 0.3.0 ships w
   `beginRefresh`, `canLoadMore`, `inFlight`.
 - **Fake PDS**: replies in the timeline, to older posts, deleted posts and blocked posts
   (cairn#236).
+- **Fake PDS acts** (cairn#251), the same in the Lean model and the Bun server: the tester's
+  repo (`putRecord`, `deleteRecord`, `getRecord` of likes, reposts and follows), `muteActor`,
+  `unmuteActor`, `getProfile`, `getPosts`, with viewer state on posts and profiles and muted
+  accounts left out of the timeline; other accounts acting (`--act`, `/control/act`); an AppView
+  lagging 0 to `lag` requests (`--lag`, `/control/lag`, `/control/catchup`), `getRecord` never;
+  notifications (`listNotifications`, `getUnreadCount`, `updateSeen`); write faults `400` and
+  `lost-after`. `make fake-fuzz` writes and runs the checks of `^22`–`^25`; claims `^31`–`^33`
+  prove the fake's writes, counts and notification pages. The pieces of a `cairn fuzz` server
+  (`Fake.worldGen`, `handles`, `serve`, `tick`, `World.likedBy`, `likeCount`, `muted`,
+  `seenAt`, `describe`); `Fake.server` itself waits for cairn 0.5.0 (above).
 - `formatDatetime`.
 - Upgrading: `Profile` and `Post` gained fields (`viewer`; `reply`, `viewer`), so anonymous
   constructors (`⟨…⟩`) and `obtain` patterns on them need the new fields; named-field
