@@ -1,0 +1,87 @@
+{
+ "feed": [
+  {
+   "post": {
+    "uri": "at://did:plc:alice000000000000000000/app.bsky.feed.post/3m2abc3aaaaa",
+    "cid": "bafyreisynth3",
+    "author": {
+     "did": "did:plc:alice000000000000000000",
+     "handle": "alice.example.com",
+     "displayName": "Alice",
+     "viewer": {
+      "muted": false,
+      "blockedBy": false,
+      "following": "at://did:plc:tester0000000000000000000/app.bsky.graph.follow/3m2fol1aaaaaa"
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 3",
+     "createdAt": "2026-10-03T12:00:00.000Z"
+    },
+    "replyCount": 0,
+    "repostCount": 1,
+    "likeCount": 2,
+    "quoteCount": 0,
+    "indexedAt": "2026-10-03T12:00:01.000Z",
+    "viewer": {
+     "like": "at://did:plc:tester0000000000000000000/app.bsky.feed.like/3m2like1aaaaa",
+     "repost": "at://did:plc:tester0000000000000000000/app.bsky.feed.repost/3m2rp1aaaaaa",
+     "threadMuted": false,
+     "embeddingDisabled": false
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:bob00000000000000000000/app.bsky.feed.post/3m2abc2aaaaa",
+    "cid": "bafyreisynth2",
+    "author": {
+     "did": "did:plc:bob00000000000000000000",
+     "handle": "bob.example.com",
+     "viewer": {
+      "muted": true,
+      "blockedBy": false,
+      "followedBy": "at://did:plc:bob00000000000000000000/app.bsky.graph.follow/3m2fol2aaaaaa"
+     }
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 2",
+     "createdAt": "2026-10-02T12:00:00.000Z"
+    },
+    "replyCount": 0,
+    "repostCount": 1,
+    "likeCount": 2,
+    "quoteCount": 0,
+    "indexedAt": "2026-10-02T12:00:01.000Z",
+    "viewer": {
+     "like": "at://did:plc:tester0000000000000000000/app.bsky.feed.like/3m2like2aaaaa"
+    }
+   }
+  },
+  {
+   "post": {
+    "uri": "at://did:plc:alice000000000000000000/app.bsky.feed.post/3m2abc1aaaaa",
+    "cid": "bafyreisynth1",
+    "author": {
+     "did": "did:plc:alice000000000000000000",
+     "handle": "alice.example.com",
+     "displayName": "Alice"
+    },
+    "record": {
+     "$type": "app.bsky.feed.post",
+     "text": "post 1",
+     "createdAt": "2026-10-01T12:00:00.000Z"
+    },
+    "replyCount": 0,
+    "repostCount": 1,
+    "likeCount": 2,
+    "quoteCount": 0,
+    "indexedAt": "2026-10-01T12:00:01.000Z",
+    "viewer": {}
+   }
+  }
+ ],
+ "cursor": "synth-cursor"
+}

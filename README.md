@@ -2,8 +2,9 @@
 
 The AT Protocol (Bluesky) for [Cairn](https://github.com/iamnbutler/cairn) apps, in pure Lean:
 XRPC requests and errors, lexicon types and decoders (on
-[cairn_json](https://github.com/iamnbutler/cairn_json)), RFC 3339 dates, and a session machine
-with proofs. Registry package `cairn_atproto`, Lean library `CairnAtproto`, claim scope
+[cairn_json](https://github.com/iamnbutler/cairn_json)), RFC 3339 dates, a session machine,
+record keys and writes (like, repost, follow, mute) with how their replies are read,
+notifications, and a paged list (`Paged`), with proofs. Registry package `cairn_atproto`, Lean library `CairnAtproto`, claim scope
 `cairn_atproto`. No Swift, no host code, no `@[extern]`.
 
 **Tokens never reach Lean.** Sign-in and refresh replies have their `accessJwt` and
@@ -65,7 +66,11 @@ let (s, outs) := step s (.cancel [7])           -- [.cancel 1]: the app no longe
 | `refreshSession service`, `getSession service` | authorised by `refresh` (POST, no body, captures both) and by `access` |
 | `FeedPage` | `feed : List FeedItem`, `cursor?` (none at the end) |
 | `FeedItem` | `post`, `reply? : ReplyCtx` (root, parent, grandparent author), `reason? : Reason` (`repost by indexedAt`, `other type`) |
-| `Post` | `uri`, `cid`, `author : Profile`, record `text` and `createdAt`, `embed?`, reply/repost/like/quote counts, `indexedAt` |
+| `Post` | `uri`, `cid`, `author : Profile`, record `text` and `createdAt`, `embed?`, reply/repost/like/quote counts, `indexedAt`, `reply? : PostReplyRef` (the record's `reply`: root and parent `StrongRef`s), `viewer : PostViewer` |
+| `PostViewer` | `like?`, `repost?`: the URIs of the signed-in account's like and repost of the post (`{}` on a public view; written as no `viewer` member) |
+| `ProfileViewer` | `muted`, `blockedBy`, `blocking?`, `following?`, `followedBy?` (record URIs); `Profile.viewer`, `{}` by default |
+| `StrongRef` | `uri`, `cid`: a record by URI and content hash |
+| `Posts`, `Call.getPosts uris` | `app.bsky.feed.getPosts`: up to `maxGetPosts` = 25 posts by URI |
 | `Embed` | `images`, `external`, `record (Quote)`, `recordWithMedia Quote Media`, `other type` |
 | `Quote` | `post QuotedPost`, `notFound uri`, `blocked uri`, `detached uri`, `other type` |
 | `Profile`, `Image` (`thumb`, `fullsize`, `alt`, `aspect?`), `External` | |
@@ -76,7 +81,9 @@ let (s, outs) := step s (.cancel [7])           -- [.cancel 1]: the app no longe
 
 `parseDatetime : String → Option Int`: an RFC 3339 date-time (`T`/`t`, `Z`/`z` or `±hh:mm`,
 any fraction) as UTC milliseconds since the epoch, the fraction truncated; `none` if it isn't
-one. Until a `cairn_date` exists.
+one. `formatDatetime : Nat → String` writes milliseconds since the epoch as
+`YYYY-MM-DDTHH:MM:SS.mmmZ` (JavaScript's `toISOString`), for a record's `createdAt` and
+`updateSeen`. Until a `cairn_date` exists.
 
 ### The session machine (`CairnAtproto.Session`)
 
@@ -113,6 +120,112 @@ Calls go to the account's PDS (from the DID document), else the host signed in t
   flight is abandoned: when its reply comes the items are forgotten again (it may have written
   new tokens), and `signIn` answers `busy` until then.
 
+### Acting: record keys, writes and read-back (`CairnAtproto.Tid`, `.AtUri`, `.Lexicon.Repo`, `.Acts`)
+
+For Sky's like, repost, follow and mute (cairn#249). Every call is a `Session.Call`, made with
+`Session.Input.call id c` like `Call.getTimeline`; the session sends it to the account's PDS
+with its access token, and answers `answer id a`.
+
+```lean
+-- A record key the client chooses: a TID, minted from the host's clock in microseconds.
+let clock := TidClock.new 0                       -- keep it in the app's state
+let some (tid, clock) := clock.mint nowMicros | …  -- strictly increasing: cairn_atproto^18
+-- The write: a like of a post the app shows, at that key.
+let w : PutRecord := { repo := account.did, rkey := tid.encode,
+                       record := .likeOf post (formatDatetime nowMs) }
+step s (.call 12 (Call.putRecord w))              -- POST com.atproto.repo.putRecord
+-- Its answer:
+match WriteOutcome.ofAnswer a with
+| .acked => …                                     -- held by the server; w.uri is the like
+| .refused status e reset => …                    -- not applied; o.describe now for words
+| .lost why => step s (.call 13 (Call.getRecord w.uri))  -- unknown: read it back
+| .notSent => …                                   -- not applied
+-- The read-back's answer: ReadBack.ofAnswer a = .found view | .missing | .unsure
+-- Unlike: Call.deleteRecord u, with u the like's AtUri (the post's viewer.like, AtUri.parse).
+```
+
+| | |
+|---|---|
+| `Tid` | `micros < 2^53`, `clock < 1024`; `encode` (13 chars of `234567abcdefghijklmnopqrstuvwxyz`, sorting as the number does), `Tid.decode`, `toNat` |
+| `TidClock` | `new clockId`, `mint now : Option (Tid × TidClock)`: at `max now (last + 1)`, so strictly past the last key even when the clock stands still or steps back; `none` past 2^53 µs (year 2255) |
+| `AtUri` | `repo`, `collection`, `rkey`; `toString` (`at://repo/collection/rkey`), `AtUri.parse` |
+| `Record` | `like StrongRef createdAt`, `repost StrongRef createdAt`, `follow did createdAt`, `other type`; `likeOf post t`, `repostOf post t`, `followOf did t`, `collection`, `toJson`, total `ofJson` |
+| `PutRecord` | `repo`, `rkey`, `record`; `uri : AtUri`, `toJson` (putRecord's body), `ofJson` |
+| `RecordView` | `getRecord`'s answer: `uri`, `cid?`, `value : Record` |
+| `ProfileDetail` | `getProfile`'s answer: `profile` (with `viewer`), `description?`, follower, follows and post counts |
+
+| Call | Request | Read its answer with |
+|---|---|---|
+| `Call.putRecord w` | POST `com.atproto.repo.putRecord`, body `w.toJson` | `WriteOutcome.ofAnswer`; the body: `StrongRef.ofPutReply` |
+| `Call.deleteRecord u` | POST `com.atproto.repo.deleteRecord` | `WriteOutcome.ofAnswer` |
+| `Call.getRecord u` | GET `com.atproto.repo.getRecord?repo&collection&rkey` | `ReadBack.ofAnswer` |
+| `Call.muteActor actor`, `Call.unmuteActor actor` | POST `app.bsky.graph.muteActor` / `unmuteActor` | `WriteOutcome.ofAnswer`; read back with `getProfile` (`viewer.muted`) |
+| `Call.getProfile actor` | GET `app.bsky.actor.getProfile?actor` | `Outcome.ofReply ProfileDetail.ofJson` |
+| `Call.getPosts uris` | GET `app.bsky.feed.getPosts?uris=…` (the first 25) | `Outcome.ofReply Posts.ofJson` |
+| `Call.listNotifications limit cursor` | GET `app.bsky.notification.listNotifications` | `Outcome.ofReply NotificationPage.ofJson` |
+| `Call.getUnreadCount` | GET `app.bsky.notification.getUnreadCount` | `Outcome.ofReply unreadCountOf` |
+| `Call.updateSeen seenAt` | POST `app.bsky.notification.updateSeen` | `WriteOutcome.ofAnswer` |
+
+**A write's reply** (`WriteOutcome.ofReply`, `ofAnswer`; `cairn_atproto^21`):
+
+| Reply | Outcome | `applied` |
+|---|---|---|
+| 2xx | `acked` | `some true` |
+| any other status below 500 (`RateLimitExceeded` with its `ratelimit-reset`, `InvalidRequest`, `InvalidSwap`, …) | `refused status error reset` | `some false` |
+| 5xx, timeout, network failure, any other host failure | `lost why`: read it back before deciding; don't send blind | `none` |
+| the host never sent it (Keychain item missing, denied), or the session answered `signedOut` | `notSent` | `some false` |
+
+A write answered `ExpiredToken` never reaches the app: the session refreshes and sends it once
+more (`cairn_atproto^12`, `^13`); the first was not applied (`^25`, assumed). `describe o now`
+gives words for a status line ("rate limited, try again in 40 s").
+
+**A read-back** (`ReadBack.ofReply`): `found view` on a 2xx with a record, `missing` on 400
+`RecordNotFound` or 404, `unsure` on anything else (read again later). `getRecord` on the
+account's own PDS reads every write it acknowledged (`^23`, assumed), where the AppView's views
+(timeline, `getPosts`, `getProfile`) may lag.
+
+**Viewer state.** A signed-in timeline's posts carry `viewer.like` and `viewer.repost` (the
+account's records), and authors `viewer.muted`, `following`, … A post's counts include the
+viewer's own like and repost exactly when `viewer` says so (`^24`, assumed), so a client shows
+`likeCount - [viewer.like] + [shown liked]`.
+
+### Notifications (`CairnAtproto.Lexicon.Notification`)
+
+| | |
+|---|---|
+| `NotificationPage` | `notifications`, `cursor?` (none at the end), `seenAt?` |
+| `Notification` | `uri`, `cid` (the record the author made), `author : Profile`, `reason`, `reasonSubject?` (the liked or reposted post), `text?` (a reply's, mention's or quote's), `isRead`, `indexedAt` |
+| `NotificationReason` | `like`, `repost`, `follow`, `mention`, `reply`, `quote`, `other "<reason>"` (`starterpack-joined`, …) |
+| `unreadCountOf`, `seenAtJson`, `seenAtOf` | `getUnreadCount`'s answer, `updateSeen`'s body |
+
+### A paged list (`CairnAtproto.Paged`)
+
+`Paged α`: a list the server pages by cursor, newest first, that the app shows and extends; the
+home feed is `Paged FeedItem`, notifications `Paged Notification` (cairn#250, moved here from
+Sky's `Feed`). Items are told apart by `Keyed.key` (a feed item: its post URI and reason; a
+notification: its URI). It holds `items`, `cursor`, `atEnd`, and the `loadMore` (call id and
+cursor) and `refresh` (call id) in flight.
+
+```lean
+-- Load more: ask from the cursor it holds; append the page if the list still holds it.
+match f.beginLoadMore id with
+| some (f, c) => step s (.call id (Call.listNotifications (some 30) (some c)))
+| none => …                                 -- one in flight, empty, at the end
+-- Refresh: ask for the head; withdraw the load-more it forgets (Input.cancel).
+match f.beginRefresh id with
+| some (f, withdraw) => …                    -- withdraw : Option Nat
+| none => …                                 -- a refresh is in flight
+-- Answers: `none` if the call failed; other calls' answers are ignored.
+f.gotLoadMore id (page? : Option (Page α))   -- page from NotificationPage.page / FeedPage.page
+f.gotRefresh id page?                       -- new items on top, or the list replaced
+```
+
+`content`, `canLoadMore`, `inFlight`, `appendPage`, `headPage`, `replaceBy` and `newOnTop` are
+there too. Proved for every item type (`CairnAtproto.Proofs.Paged`, `^26`–`^29`): the list stays
+a contiguous run of the server's list with no duplicates; a stale load-more page changes
+nothing; the cursor is never lost; a refresh and a load-more answered in either order end the
+same.
+
 ## What is proved
 
 With no `sorry` and no axioms beyond `propext`, `Classical.choice` and `Quot.sound`
@@ -137,6 +250,29 @@ sequence of inputs from any app, not only the harness's.
 | `cairn_atproto^9` | invariant | a failed refresh answers every held call in that step; a refused one also forgets both items and answers them `signedOut`; calls are held only while a refresh is in flight (`RefusalEndsAll`) |
 | `cairn_atproto^15` | assume | no Lean value holds a token. By construction (no type has a token field) and `SessionInfo.ofJson_replaceTokens` (the decoder reads the same account whatever `accessJwt` and `refreshJwt` hold); its check `atproto.no-token` is `make fake-fuzz` (below, "The fake PDS") |
 
+The acting claims are in `CairnAtproto.ActClaims`, over a harness machine whose state is a
+`TidClock` and the keys it minted; the others hold of every value, so they hold in every state.
+
+| Id | Kind | Claim |
+|---|---|---|
+| `cairn_atproto^17` | move | mint a record key at a clock reading: a new key past every earlier one, or none |
+| `cairn_atproto^18` | invariant | minted record keys strictly increase, as numbers and as text, whatever the clock reads (`Minted`) |
+| `cairn_atproto^19` | invariant | a TID's text is 13 sortable base-32 chars and reads back as the TID (`TidText`) |
+| `cairn_atproto^20` | invariant | the same write is the same `putRecord` request, and its body reads back as the write (`SameWrite`) |
+| `cairn_atproto^21` | invariant | how a write's reply is read: acked exactly on 2xx, refused below 500, lost on 5xx/timeout/network, not sent otherwise (`WriteReading`) |
+| `cairn_atproto^22` | assume | `putRecord` at a key already written with the same record, and `deleteRecord` of a missing record, change nothing (check `atproto.idempotent-writes`) |
+| `cairn_atproto^23` | assume | `getRecord` on the account's PDS reads every write it acknowledged (check `atproto.read-your-writes`) |
+| `cairn_atproto^24` | assume | a post's counts and viewer state are from one moment (check `atproto.count-viewer`) |
+| `cairn_atproto^25` | assume | a write answered `ExpiredToken` was not applied (check `atproto.expired-not-applied`) |
+| `cairn_atproto^26` | invariant | a paged list is a contiguous run of the server's list, with no duplicates (`Paged.Contiguous`) |
+| `cairn_atproto^27` | invariant | a stale load-more page changes nothing (`gotLoadMore_stale`) |
+| `cairn_atproto^28` | invariant | a paged list not at its end never loses its cursor (`CursorKept`) |
+| `cairn_atproto^29` | invariant | a refresh and a load-more answered in either order end the same (`race`) |
+| `cairn_atproto^30` | invariant | the acting decoders read back what their encoders write (`ReadsBack`) |
+
+The checks of `^22`–`^25` run against the fake PDS once it serves writes (cairn#251) and once
+against the real network (cairn#258).
+
 Retired in 0.2.0: ^5–^8 (their statements changed when requests became Cairn's `Request` and the
 session gained `cancel`; the same claims are now ^11–^14) and ^10 (its text said the trusted-base
 fuzz checks it; it is now ^15, checked by `make fake-fuzz`).
@@ -155,7 +291,12 @@ theorem SessionInfo.ofJson_toJson (s : SessionInfo) : SessionInfo.ofJson s.toJso
 theorem XrpcError.ofJson_toJson (e : XrpcError) (h : e.name.Canonical) :
     XrpcError.ofJson e.toJson = e
 -- (and Profile, Image, External, QuotedPost, Quote, Media, Embed, Post, ReplyRef, ReplyCtx,
--- Reason, FeedItem)
+-- Reason, FeedItem, StrongRef, ProfileViewer, PostViewer, PostReplyRef, Posts, ProfileDetail,
+-- Record, PutRecord, RecordView, Notification, NotificationPage; CairnAtproto.Proofs.Acts)
+-- CairnAtproto.Proofs.Tid
+theorem Tid.decode_encode (t : Tid) : Tid.decode t.encode = some t
+theorem TidClock.mint_increasing (h : g.mint now = some (t, g')) (l : Nat) (hl : g.last = some l) :
+    l < t.micros
 theorem SessionInfo.ofJson_replaceTokens (v : String → Json) (kvs : List (String × Json)) :
     SessionInfo.ofJson (.obj (kvs.map (replaceTokens v))) = SessionInfo.ofJson (.obj kvs)
 
@@ -166,6 +307,8 @@ theorem SessionInfo.decode_encode (s : SessionInfo) (slash : Bool) :
     (decode (encode s.toJson slash)).bind SessionInfo.ofJson = some s
 theorem XrpcError.decode_encode (e : XrpcError) (h : e.name.Canonical) (slash : Bool) :
     (decode (encode e.toJson slash)).map XrpcError.ofJson = some e
+-- and NotificationPage, Posts, ProfileDetail, RecordView; a putRecord call's body reads back
+-- as its write (Session.Call.putRecordOf_putRecord).
 ```
 
 Decoders are total by construction: every one is a structurally recursive Lean function (no
@@ -180,13 +323,21 @@ against `fixtures/expected.txt`, and checks every date it parsed against Python'
 
 - `fixtures/public/`: `app.bsky.feed.getAuthorFeed` for `bsky.app` from
   `public.api.bsky.app`, two pages, recorded with no authentication; and its error for an actor
-  that doesn't exist.
+  that doesn't exist; `app.bsky.actor.getProfile` and `app.bsky.feed.getPosts` (three posts)
+  for `bsky.app`, and `getProfile`'s error for an account that doesn't exist.
 - `fixtures/synthesized/`: a `getTimeline` page with every embed kind, quote kind, reason and
   reply kind; the last page; `createSession`, `refreshSession` and `getSession` replies with
   the tokens blank, as the host hands them to Lean; and the four named errors.
+- `fixtures/synthesized/`, for acting: a timeline, `getPosts` and `getProfile` with the
+  viewer's state (liked, reposted, muted, following, blocking); `listNotifications` with every
+  reason and one unknown, and its last page; `getUnreadCount`; `getRecord` of a like, a follow
+  and a post; `putRecord`'s reply; 400 `RecordNotFound` and `InvalidSwap`; and a timeline page
+  from the fake PDS with replies to posts, deleted posts and blocked posts.
 
 Build-time tests (`#guard`, in `CairnAtprotoTests`) cover URLs, errors, `Outcome.ofReply`, dates
-and session scenarios.
+and session scenarios; TIDs (a known one, minting with the clock still or stepping back), AT
+URIs, every acting call's URL and body, `WriteOutcome.ofReply`, `ReadBack.ofReply`,
+notification reasons, `Paged` runs, and the fake's replies.
 
 ## The fake PDS
 
@@ -198,7 +349,7 @@ sizes). Neither holds a real credential or talks to the network.
 
 | | |
 |---|---|
-| Timeline | grows only at its head: post `k` (from the oldest) is `postAt cfg k`, a function of the seed and `k`; 1–3 posts arrive after an XRPC request with chance `1/arrival`, or on `POST /control/post?n=` |
+| Timeline | grows only at its head: post `k` (from the oldest) is `postAt cfg k`, a function of the seed and `k`; 1–3 posts arrive after an XRPC request with chance `1/arrival`, or on `POST /control/post?n=`. About one post in four is a reply (`replyTarget`): to an older post (with its thread's root, and the grandparent's author when the parent is itself a reply), to a deleted post (`notFoundPost`) or to a blocked one (`blockedPost`); the record carries `reply` too |
 | `getTimeline` | `limit` 1–100 (default 50), newest first; `cursor` is opaque (`<createdAt>::<cid>` of the page's oldest post), absent at the end, and stays valid as posts arrive; a bad one is 400 `InvalidRequest` |
 | `createSession` | one identifier and app password, from the seed (`Config.identifier`, `Config.password`); otherwise 401 `AuthenticationRequired` |
 | Tokens | a generation per sign-in or refresh. The access token serves 1 to `life` calls, then 400 `ExpiredToken`; `refreshSession` rotates both and refuses the old refresh token (400 `InvalidToken`). A token is a marker, `fakepds-token.<kind>.<gen>.<nonce>` |
@@ -264,6 +415,27 @@ the same build talks to the real network again. Stop the server with Ctrl-C.
 test, log, script or command line, in this repository or any other. The fake's identifier,
 password and tokens are generated and fake; its log shows paths and statuses, never a token or a
 `createSession` body.
+
+## Unreleased (0.3.0)
+
+For Sky's M5 (cairn#249, cairn#250, cairn#236). Not yet published; 0.3.0 ships with cairn#258.
+
+- **Record keys**: `Tid`, `TidClock.mint` (strictly increasing, `^17`–`^19`), `AtUri`.
+- **Writes**: `Record` (like, repost, follow), `PutRecord`, `Call.putRecord`, `deleteRecord`,
+  `getRecord`, `muteActor`, `unmuteActor`; `WriteOutcome` (how a write's reply is read, `^21`)
+  and `ReadBack`; the same write is the same request (`^20`); assumptions about Bluesky's
+  servers as `assume` claims `^22`–`^25`.
+- **Viewer state**: `Post.viewer`, `Profile.viewer`, `Post.reply` (the record's), `getProfile`
+  (`ProfileDetail`), `getPosts` (`Posts`).
+- **Notifications**: `listNotifications`, `getUnreadCount`, `updateSeen`.
+- **`Paged α`**, moved from Sky's `Feed` with its proofs (`^26`–`^29`), plus `beginLoadMore`,
+  `beginRefresh`, `canLoadMore`, `inFlight`.
+- **Fake PDS**: replies in the timeline, to older posts, deleted posts and blocked posts
+  (cairn#236).
+- `formatDatetime`.
+- Upgrading: `Profile` and `Post` gained fields (`viewer`; `reply`, `viewer`), so anonymous
+  constructors (`⟨…⟩`) and `obtain` patterns on them need the new fields; named-field
+  construction is unchanged.
 
 ## Cairn 0.3.0
 

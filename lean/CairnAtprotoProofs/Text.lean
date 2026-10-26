@@ -1,4 +1,5 @@
 import CairnAtproto.Proofs.RoundTrip
+import CairnAtproto.Proofs.Acts
 import CairnJsonProofs.RoundTrip
 
 
@@ -20,9 +21,27 @@ theorem depthList_map_le {α : Type} (g : α → Json) (n : Nat) :
     exact Nat.max_le.2 ⟨h x (List.mem_cons_self ..),
       depthList_map_le g n xs (fun y hy => h y (List.mem_cons_of_mem _ hy))⟩
 
-theorem Profile.depth_toJson (p : Profile) : p.toJson.depth ≤ 1 := by
-  obtain ⟨_, _, dn, av⟩ := p
-  cases dn <;> cases av <;> simp [Profile.toJson, opt, Json.depth, Json.depth.depthMembers]
+theorem ProfileViewer.depth_toJson (v : ProfileViewer) : v.toJson.depth ≤ 1 := by
+  obtain ⟨_, _, a, b, c⟩ := v
+  cases a <;> cases b <;> cases c <;>
+    simp [ProfileViewer.toJson, opt, Json.depth, Json.depth.depthMembers]
+
+theorem PostViewer.depth_toJson (v : PostViewer) : v.toJson.depth ≤ 1 := by
+  obtain ⟨a, b⟩ := v
+  cases a <;> cases b <;> simp [PostViewer.toJson, opt, Json.depth, Json.depth.depthMembers]
+
+theorem StrongRef.depth_toJson (r : StrongRef) : r.toJson.depth ≤ 1 := by
+  simp [StrongRef.toJson, Json.depth, Json.depth.depthMembers]
+
+theorem PostReplyRef.depth_toJson (r : PostReplyRef) : r.toJson.depth ≤ 2 := by
+  have := StrongRef.depth_toJson r.root; have := StrongRef.depth_toJson r.parent
+  simp [PostReplyRef.toJson, Json.depth, Json.depth.depthMembers]; omega
+
+theorem Profile.depth_toJson (p : Profile) : p.toJson.depth ≤ 2 := by
+  obtain ⟨_, _, dn, av, v⟩ := p
+  have := ProfileViewer.depth_toJson v
+  rcases nonDefault_cases {} v with ⟨h, -⟩ | h <;> cases dn <;> cases av <;>
+    simp [Profile.toJson, h, opt, Json.depth, Json.depth.depthMembers] <;> omega
 
 theorem Image.depth_toJson (i : Image) : i.toJson.depth ≤ 2 := by
   obtain ⟨_, _, _, a⟩ := i
@@ -32,11 +51,11 @@ theorem External.depth_toJson (e : External) : e.toJson.depth ≤ 1 := by
   obtain ⟨_, _, _, t⟩ := e
   cases t <;> simp [External.toJson, opt, Json.depth, Json.depth.depthMembers, Json.ofNat]
 
-theorem QuotedPost.depth_toJson (q : QuotedPost) : q.toJson.depth ≤ 2 := by
+theorem QuotedPost.depth_toJson (q : QuotedPost) : q.toJson.depth ≤ 3 := by
   have := Profile.depth_toJson q.author
   simp [QuotedPost.toJson, Json.depth, Json.depth.depthMembers, Json.ofNat]; omega
 
-theorem Quote.depth_toJson (q : Quote) : q.toJson.depth ≤ 2 := by
+theorem Quote.depth_toJson (q : Quote) : q.toJson.depth ≤ 3 := by
   cases q with
   | post p => exact QuotedPost.depth_toJson p
   | _ => simp [Quote.toJson, Json.depth, Json.depth.depthMembers, Json.ofNat]
@@ -67,9 +86,12 @@ theorem Embed.depth_toJson (e : Embed) : e.toJson.depth ≤ 5 := by
 
 theorem Post.depth_toJson (p : Post) : p.toJson.depth ≤ 6 := by
   have := Profile.depth_toJson p.author
-  cases h : p.embed with
-  | none => simp [Post.toJson, h, opt, Json.depth, Json.depth.depthMembers, Json.ofNat]; omega
-  | some e => have := Embed.depth_toJson e; simp [Post.toJson, h, opt, Json.depth, Json.depth.depthMembers, Json.ofNat]; omega
+  have := PostViewer.depth_toJson p.viewer
+  have hr : ∀ r : PostReplyRef, r.toJson.depth ≤ 2 := PostReplyRef.depth_toJson
+  rcases nonDefault_cases {} p.viewer with ⟨hv, -⟩ | hv <;> cases hy : p.reply <;> cases h : p.embed <;>
+    (try have := Embed.depth_toJson ‹Embed›) <;>
+    (try have := hr ‹PostReplyRef›) <;>
+    simp [Post.toJson, h, hv, hy, opt, Json.depth, Json.depth.depthMembers, Json.ofNat] <;> omega
 
 theorem ReplyRef.depth_toJson (r : ReplyRef) : r.toJson.depth ≤ 6 := by
   cases r with
@@ -86,7 +108,7 @@ theorem ReplyCtx.depth_toJson (r : ReplyCtx) : r.toJson.depth ≤ 7 := by
   | none => simp [ReplyCtx.toJson, h, opt, Json.depth, Json.depth.depthMembers, Json.ofNat]; omega
   | some g => have := Profile.depth_toJson g; simp [ReplyCtx.toJson, h, opt, Json.depth, Json.depth.depthMembers, Json.ofNat]; omega
 
-theorem Reason.depth_toJson (r : Reason) : r.toJson.depth ≤ 2 := by
+theorem Reason.depth_toJson (r : Reason) : r.toJson.depth ≤ 3 := by
   cases r with
   | repost p _ => have := Profile.depth_toJson p; simp [Reason.toJson, Json.depth, Json.depth.depthMembers, Json.ofNat]; omega
   | other t => simp [Reason.toJson, Json.depth, Json.depth.depthMembers, Json.ofNat]
@@ -123,6 +145,45 @@ theorem XrpcError.depth_toJson (e : XrpcError) : e.toJson.depth ≤ 1 := by
   obtain ⟨_, m⟩ := e
   cases m <;> simp [XrpcError.toJson, opt, Json.depth, Json.depth.depthMembers, Json.ofNat]
 
+theorem Record.depth_toJson (r : Record) : r.toJson.depth ≤ 2 := by
+  cases r with
+  | like s _ => have := StrongRef.depth_toJson s; simp [Record.toJson, Json.depth, Json.depth.depthMembers]; omega
+  | repost s _ => have := StrongRef.depth_toJson s; simp [Record.toJson, Json.depth, Json.depth.depthMembers]; omega
+  | _ => simp [Record.toJson, Json.depth, Json.depth.depthMembers]
+
+theorem PutRecord.depth_toJson (w : PutRecord) : w.toJson.depth ≤ 3 := by
+  have := Record.depth_toJson w.record
+  simp [PutRecord.toJson, Json.depth, Json.depth.depthMembers]; omega
+
+theorem RecordView.depth_toJson (r : RecordView) : r.toJson.depth ≤ 3 := by
+  obtain ⟨_, c, v⟩ := r
+  have := Record.depth_toJson v
+  cases c <;> simp [RecordView.toJson, opt, Json.depth, Json.depth.depthMembers] <;> omega
+
+theorem Notification.depth_toJson (n : Notification) : n.toJson.depth ≤ 3 := by
+  obtain ⟨_, _, a, _, rs, t, _, _⟩ := n
+  have := Profile.depth_toJson a
+  cases rs <;> cases t <;>
+    simp [Notification.toJson, opt, Json.depth, Json.depth.depthMembers] <;> omega
+
+theorem NotificationPage.depth_toJson (p : NotificationPage) : p.toJson.depth ≤ 5 := by
+  obtain ⟨ns, c, s⟩ := p
+  have := depthList_map_le Notification.toJson 3 ns (fun n _ => Notification.depth_toJson n)
+  cases c <;> cases s <;>
+    simp [NotificationPage.toJson, opt, Json.depth, Json.depth.depthMembers] <;> omega
+
+theorem Posts.depth_toJson (p : Posts) : p.toJson.depth ≤ 8 := by
+  obtain ⟨ps⟩ := p
+  have := depthList_map_le Post.toJson 6 ps (fun q _ => Post.depth_toJson q)
+  simp [Posts.toJson, Json.depth, Json.depth.depthMembers]; omega
+
+theorem ProfileDetail.depth_toJson (d : ProfileDetail) : d.toJson.depth ≤ 2 := by
+  obtain ⟨⟨_, _, dn, av, v⟩, desc, _, _, _⟩ := d
+  have := ProfileViewer.depth_toJson v
+  rcases nonDefault_cases {} v with ⟨h, -⟩ | h <;> cases dn <;> cases av <;> cases desc <;>
+    simp [ProfileDetail.toJson, Profile.toJson, h, opt, Json.depth, Json.depth.depthMembers,
+      Json.ofNat] <;> omega
+
 /-! ## As text
 
 What a server writes (`CairnJson.encode`, either slash style) reads back through
@@ -142,5 +203,35 @@ theorem XrpcError.decode_encode (e : XrpcError) (h : e.name.Canonical) (slash : 
     (decode (encode e.toJson slash)).map XrpcError.ofJson = some e := by
   rw [CairnJson.decode_encode _ _ (Nat.le_trans (XrpcError.depth_toJson e) (by decide))]
   simp [XrpcError.ofJson_toJson e h]
+
+theorem NotificationPage.decode_encode (p : NotificationPage)
+    (h : ∀ n ∈ p.notifications, n.reason.Canonical) (slash : Bool) :
+    (decode (encode p.toJson slash)).bind NotificationPage.ofJson = some p := by
+  rw [CairnJson.decode_encode _ _ (Nat.le_trans (NotificationPage.depth_toJson p) (by decide))]
+  exact NotificationPage.ofJson_toJson p h
+
+theorem Posts.decode_encode (p : Posts) (slash : Bool) :
+    (decode (encode p.toJson slash)).bind Posts.ofJson = some p := by
+  rw [CairnJson.decode_encode _ _ (Nat.le_trans (Posts.depth_toJson p) (by decide))]
+  exact Posts.ofJson_toJson p
+
+theorem ProfileDetail.decode_encode (d : ProfileDetail) (slash : Bool) :
+    (decode (encode d.toJson slash)).bind ProfileDetail.ofJson = some d := by
+  rw [CairnJson.decode_encode _ _ (Nat.le_trans (ProfileDetail.depth_toJson d) (by decide))]
+  exact ProfileDetail.ofJson_toJson d
+
+theorem RecordView.decode_encode (r : RecordView) (slash : Bool) :
+    (decode (encode r.toJson slash)).bind RecordView.ofJson = some r := by
+  rw [CairnJson.decode_encode _ _ (Nat.le_trans (RecordView.depth_toJson r) (by decide))]
+  exact RecordView.ofJson_toJson r
+
+/-- **The same write is the same request, through text**: a `putRecord` call's body reads back
+as the write it was built from. -/
+theorem Session.Call.putRecordOf_putRecord (w : PutRecord) :
+    (Session.Call.putRecord w).putRecordOf = some w := by
+  have e := CairnJson.decode_encode w.toJson false
+    (Nat.le_trans (PutRecord.depth_toJson w) (by decide))
+  simp [Session.Call.putRecordOf, Session.Call.putRecord, Session.Call.procedureJson, e,
+    PutRecord.ofJson_toJson]
 
 end CairnAtproto

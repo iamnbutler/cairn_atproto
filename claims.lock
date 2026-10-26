@@ -16,3 +16,17 @@
 14	invariant	active	497edb490a99ed9d	Signed out, no secret is sent
 15	assume	active	-	No Lean value holds a token
 16	move	active	8f699fb531da42aa	Cancel a call
+17	move	active	7a8fbd89d71ff912	Mint a record key
+18	invariant	active	a23e4cdb13d1c01d	Record keys strictly increase
+19	invariant	active	5afa58e47c6f925f	A record key's text reads back
+20	invariant	active	6f92f7a6746ce97b	The same write is the same request
+21	invariant	active	80915b4d8b3a1682	How a write's reply is read
+22	assume	active	-	Writes with a chosen key are idempotent
+23	assume	active	-	getRecord reads your writes
+24	assume	active	-	A post's counts and viewer are from one moment
+25	assume	active	-	A write refused for its token was not applied
+26	invariant	active	abac6aa369864d27	A paged list is a run of the server's
+27	invariant	active	97d87eb968005d3d	A stale page changes nothing
+28	invariant	active	923f8819af6fa289	The cursor is never lost
+29	invariant	active	3ba3ab310d08d596	A refresh racing a load-more
+30	invariant	active	0b68743cdae010a2	The decoders read back what the encoders write

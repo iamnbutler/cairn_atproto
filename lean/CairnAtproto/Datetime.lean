@@ -4,7 +4,7 @@ module
 
 `parseDatetime` reads an RFC 3339 timestamp, as the AT Protocol's `datetime` format writes
 them (`createdAt`, `indexedAt`), into milliseconds since the Unix epoch, UTC. It lives here until a
-`cairn_date` exists.
+`cairn_date` exists. `formatDatetime` writes one, from milliseconds, as the servers do.
 
 Accepted: `YYYY-MM-DDTHH:MM:SS`, an optional fraction of any length (milliseconds are its first
 three digits; the rest is dropped, so it rounds toward the past), then `Z` or `±HH:MM`. `T`
@@ -91,5 +91,33 @@ def parseDatetime (s : String) : Option Int := do
     let secs : Int := days * 86400 + (h : Int) * 3600 + (mi : Int) * 60 + sec - off * 60
     some (secs * 1000 + ms)
   else none
+
+/-! ## Writing -/
+
+/-- Year, month and day of a day number counted from 1970-01-01 (Hinnant's `civil_from_days`). -/
+def civilFromDays (days : Nat) : Nat × Nat × Nat :=
+  let z := days + 719468
+  let era := z / 146097
+  let doe := z - era * 146097
+  let yoe := (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+  let doy := doe - (365 * yoe + yoe / 4 - yoe / 100)
+  let mp := (5 * doy + 2) / 153
+  let d := doy - (153 * mp + 2) / 5 + 1
+  let m := if mp < 10 then mp + 3 else mp - 9
+  (yoe + era * 400 + (if m ≤ 2 then 1 else 0), m, d)
+
+/-- `n` in decimal, zero-padded to `w` digits. -/
+def zeroPad (w n : Nat) : String :=
+  let s := toString n
+  String.ofList (List.replicate (w - s.length) '0') ++ s
+
+/-- UTC milliseconds since the epoch as `YYYY-MM-DDTHH:MM:SS.mmmZ`, the form the AT Protocol's
+servers write (and JavaScript's `toISOString`): what a record's `createdAt` and `updateSeen`'s
+`seenAt` take. `parseDatetime` reads it back. -/
+def formatDatetime (ms : Nat) : String :=
+  let (y, mo, d) := civilFromDays (ms / 86400000)
+  let r := ms % 86400000
+  let p := zeroPad
+  s!"{p 4 y}-{p 2 mo}-{p 2 d}T{p 2 (r / 3600000)}:{p 2 (r / 60000 % 60)}:{p 2 (r / 1000 % 60)}.{p 3 (r % 1000)}Z"
 
 end CairnAtproto

@@ -1,0 +1,9 @@
+{
+ "uri": "at://did:plc:tester0000000000000000000/app.bsky.feed.like/3m2like1aaaaa",
+ "cid": "bafyreilike1",
+ "commit": {
+  "cid": "bafyreicommit1",
+  "rev": "3m2rev1aaaaaa"
+ },
+ "validationStatus": "valid"
+}

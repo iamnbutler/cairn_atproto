@@ -1,0 +1,14 @@
+{
+ "did": "did:plc:bob00000000000000000000",
+ "handle": "bob.example.com",
+ "viewer": {
+  "muted": true,
+  "blockedBy": false,
+  "blocking": "at://did:plc:tester0000000000000000000/app.bsky.graph.block/3m2blk1aaaaaa",
+  "following": "at://did:plc:tester0000000000000000000/app.bsky.graph.follow/3m2fol3aaaaaa"
+ },
+ "description": "Bob's profile",
+ "followersCount": 12,
+ "followsCount": 3,
+ "postsCount": 40
+}
