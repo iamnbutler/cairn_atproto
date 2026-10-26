@@ -24,10 +24,30 @@ theorem optMap_map {α β : Type} (f : β → Option α) (g : α → β) :
 @[simp] theorem asObj_obj (kvs : List (String × Json)) : Json.asObj (.obj kvs) = some (.obj kvs) :=
   rfl
 
+theorem StrongRef.ofJson_toJson (r : StrongRef) : StrongRef.ofJson r.toJson = some r := by
+  obtain ⟨uri, cid⟩ := r
+  simp [StrongRef.ofJson, StrongRef.toJson, Json.str?, Json.field, List.find?, Json.getStr]
+
+@[simp] theorem StrongRef.asObj_toJson (r : StrongRef) : Json.asObj r.toJson = some r.toJson := rfl
+
+theorem ProfileViewer.ofJson_toJson (v : ProfileViewer) : ProfileViewer.ofJson v.toJson = v := by
+  obtain ⟨m, b, bl, f, fb⟩ := v
+  cases bl <;> cases f <;> cases fb <;>
+    simp [ProfileViewer.ofJson, ProfileViewer.toJson, opt, Json.str?, Json.bool?, Json.field,
+      List.find?, Json.getStr, Json.getBool]
+
+@[simp] theorem ProfileViewer.asObj_toJson (v : ProfileViewer) :
+    Json.asObj v.toJson = some v.toJson := rfl
+
+theorem nonDefault_cases {α : Type} [DecidableEq α] (d v : α) :
+    (nonDefault d v = none ∧ v = d) ∨ nonDefault d v = some v := by
+  unfold nonDefault; split <;> simp_all
+
 theorem Profile.ofJson_toJson (p : Profile) : Profile.ofJson p.toJson = some p := by
-  obtain ⟨did, handle, dn, av⟩ := p
-  cases dn <;> cases av <;>
-    simp [Profile.ofJson, Profile.toJson, opt, Json.str?, Json.field, List.find?, Json.getStr]
+  obtain ⟨did, handle, dn, av, v⟩ := p
+  rcases nonDefault_cases {} v with ⟨h, rfl⟩ | h <;> cases dn <;> cases av <;>
+    simp [h, Profile.ofJson, Profile.toJson, ProfileViewer.of, opt, Json.obj?, Json.str?,
+      Json.field, List.find?, Json.getStr, ProfileViewer.ofJson_toJson]
 
 theorem Image.ofJson_toJson (i : Image) : Image.ofJson i.toJson = some i := by
   obtain ⟨thumb, full, alt, aspect⟩ := i
@@ -116,22 +136,40 @@ theorem Embed.ofJson_toJson (e : Embed) : Embed.ofJson e.toJson = e := by
 @[simp] theorem Embed.asObj_toJson (e : Embed) : Json.asObj e.toJson = some e.toJson := by
   cases e <;> rfl
 
+theorem PostReplyRef.ofJson_toJson (r : PostReplyRef) : PostReplyRef.ofJson r.toJson = some r := by
+  obtain ⟨root, parent⟩ := r
+  simp [PostReplyRef.ofJson, PostReplyRef.toJson, Json.obj?, Json.field, List.find?,
+    StrongRef.ofJson_toJson]
+
+@[simp] theorem PostReplyRef.asObj_toJson (r : PostReplyRef) :
+    Json.asObj r.toJson = some r.toJson := rfl
+
+theorem PostViewer.ofJson_toJson (v : PostViewer) : PostViewer.ofJson v.toJson = v := by
+  obtain ⟨l, r⟩ := v
+  cases l <;> cases r <;>
+    simp [PostViewer.ofJson, PostViewer.toJson, opt, Json.str?, Json.field, List.find?, Json.getStr]
+
+@[simp] theorem PostViewer.asObj_toJson (v : PostViewer) : Json.asObj v.toJson = some v.toJson :=
+  rfl
+
 theorem Post.ofJson_toJson (p : Post) : Post.ofJson p.toJson = some p := by
-  obtain ⟨uri, cid, author, text, createdAt, embed, rc, rp, lc, qc, indexedAt⟩ := p
-  cases embed <;>
-    simp [Post.ofJson, Post.toJson, opt, recordText, Json.obj?, Json.str?, Json.nat?, Json.asNat,
-      Json.ofNat, Json.field, List.find?, Json.getStr, Profile.ofJson_toJson, Embed.ofJson_toJson]
+  obtain ⟨uri, cid, author, text, createdAt, embed, rc, rp, lc, qc, indexedAt, reply, v⟩ := p
+  rcases nonDefault_cases {} v with ⟨h, rfl⟩ | h <;> cases embed <;> cases reply <;>
+    simp [h, Post.ofJson, Post.toJson, opt, recordText, recordReply, Json.obj?, Json.str?,
+      Json.nat?, Json.asNat, Json.ofNat, Json.field, List.find?, Json.getStr, Profile.ofJson_toJson,
+      Embed.ofJson_toJson, PostReplyRef.ofJson_toJson, PostViewer.ofJson_toJson]
 
 @[simp] theorem Post.asObj_toJson (p : Post) : Json.asObj p.toJson = some p.toJson := rfl
 
 theorem ReplyRef.ofJson_toJson (r : ReplyRef) : ReplyRef.ofJson r.toJson = r := by
   cases r with
   | post p =>
-    obtain ⟨uri, cid, author, text, createdAt, embed, rc, rp, lc, qc, indexedAt⟩ := p
-    cases embed <;>
-      simp [ReplyRef.ofJson, ReplyRef.toJson, Post.toJson, Post.ofJson, opt, recordText,
-        Json.type, Json.obj?, Json.str?, Json.nat?, Json.asNat, Json.ofNat, Json.field, List.find?,
-        Json.getStr, Profile.ofJson_toJson, Embed.ofJson_toJson, tPostView, tNotFoundPost,
+    obtain ⟨uri, cid, author, text, createdAt, embed, rc, rp, lc, qc, indexedAt, reply, v⟩ := p
+    rcases nonDefault_cases {} v with ⟨h, rfl⟩ | h <;> cases embed <;> cases reply <;>
+      simp [h, ReplyRef.ofJson, ReplyRef.toJson, Post.toJson, Post.ofJson, opt, recordText,
+        recordReply, Json.type, Json.obj?, Json.str?, Json.nat?, Json.asNat, Json.ofNat,
+        Json.field, List.find?, Json.getStr, Profile.ofJson_toJson, Embed.ofJson_toJson,
+        PostReplyRef.ofJson_toJson, PostViewer.ofJson_toJson, tPostView, tNotFoundPost,
         tBlockedPost]
   | other t =>
     simp [ReplyRef.ofJson, ReplyRef.toJson, type_lone, Post.ofJson, Json.str?, Json.field,

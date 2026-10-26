@@ -4,9 +4,15 @@ public import CairnAtproto.Xrpc
 
 /-! # `app.bsky.feed`: the timeline
 
-`app.bsky.feed.getTimeline` (and `getAuthorFeed`, which answers the same shape) as M4 reads it:
+`app.bsky.feed.getTimeline` (and `getAuthorFeed`, which answers the same shape) as Sky reads it:
 each `FeedItem` is a post with its author, text, `createdAt`, counts and embed, the post it
-replies to, and the repost that put it in the feed.
+replies to, and the repost that put it in the feed; and `getPosts`, the same post views by URI.
+
+**Viewer state.** An authenticated view says how the signed-in account stands to each post
+(`Post.viewer`: its own like and repost records) and account (`Profile.viewer`: muted, blocked,
+its follow record). A public view has none, and it decodes as the default (nothing); the encoders
+write the default as no member, so a fake's views without viewer state are byte-for-byte what
+they were.
 
 Decoders are total and ignore fields they don't know. A union member whose `$type` they don't
 know, or that is missing a field they need, decodes as the union's `other` with its `$type`
@@ -22,12 +28,37 @@ Every type has an encoder, `toJson`, in the server's shape, and `ofJson (toJson 
 namespace CairnAtproto
 open CairnJson
 
-/-- `app.bsky.actor.defs#profileViewBasic`, the parts M4 shows. -/
+/-- `com.atproto.repo.strongRef`: a record by its AT URI and the CID of the version meant. A like
+or repost names its subject this way; a reply its parent and root. -/
+structure StrongRef where
+  uri : String
+  cid : String
+deriving Repr, DecidableEq, Inhabited
+
+/-- `app.bsky.actor.defs#viewerState`: how the signed-in account (the viewer) stands to an
+account. The AppView fills it in only for an authenticated request; a public one has none, which
+decodes as the default (nothing). -/
+structure ProfileViewer where
+  /-- The viewer has muted the account (`app.bsky.graph.muteActor`). -/
+  muted : Bool := false
+  /-- The account blocks the viewer. -/
+  blockedBy : Bool := false
+  /-- The viewer's block record of the account (an AT URI), if they block it. -/
+  blocking : Option String := none
+  /-- The viewer's follow record of the account (an AT URI), if they follow it: what an unfollow
+  deletes. -/
+  following : Option String := none
+  /-- The account's follow record of the viewer, if it follows them. -/
+  followedBy : Option String := none
+deriving Repr, DecidableEq, Inhabited
+
+/-- `app.bsky.actor.defs#profileViewBasic`, the parts Sky shows, and the viewer's state. -/
 structure Profile where
   did : String
   handle : String
   displayName : Option String := none
   avatar : Option String := none
+  viewer : ProfileViewer := {}
 deriving Repr, DecidableEq, Inhabited
 
 /-- One image of `app.bsky.embed.images#view`. -/
@@ -85,7 +116,22 @@ inductive Embed where
   | other (type : String)
 deriving Repr, DecidableEq, Inhabited
 
-/-- `app.bsky.feed.defs#postView`, the parts M4 shows. -/
+/-- `app.bsky.feed.defs#viewerState` of a post: the viewer's own like and repost records of it
+(AT URIs), if any. A post view's counts include the viewer's like exactly when `like` is set
+(`cairn_atproto^24`, assumed). -/
+structure PostViewer where
+  like : Option String := none
+  repost : Option String := none
+deriving Repr, DecidableEq, Inhabited
+
+/-- `app.bsky.feed.post#replyRef`, in a post's record: the post it replies to and its thread's
+root. -/
+structure PostReplyRef where
+  root : StrongRef
+  parent : StrongRef
+deriving Repr, DecidableEq, Inhabited
+
+/-- `app.bsky.feed.defs#postView`, the parts Sky shows. -/
 structure Post where
   uri : String
   cid : String
@@ -100,6 +146,10 @@ structure Post where
   likeCount : Nat := 0
   quoteCount : Nat := 0
   indexedAt : String
+  /-- The record's `reply`: set when the post is a reply. -/
+  reply : Option PostReplyRef := none
+  /-- The viewer's like and repost of it (none on a public, unauthenticated view). -/
+  viewer : PostViewer := {}
 deriving Repr, DecidableEq, Inhabited
 
 /-- A reply's parent or root. -/
@@ -157,10 +207,26 @@ def tPostRecord : String := "app.bsky.feed.post"
 
 /-! ## Decoding -/
 
+def StrongRef.ofJson (j : Json) : Option StrongRef := do
+  let uri ← j.str? "uri"
+  let cid ← j.str? "cid"
+  some { uri, cid }
+
+/-- Total: a missing or malformed member reads as its default. -/
+def ProfileViewer.ofJson (j : Json) : ProfileViewer :=
+  { muted := (j.bool? "muted").getD false, blockedBy := (j.bool? "blockedBy").getD false,
+    blocking := j.str? "blocking", following := j.str? "following",
+    followedBy := j.str? "followedBy" }
+
+/-- A view's `viewer` member; none (a public view) is the default. -/
+def ProfileViewer.of (j : Json) : ProfileViewer :=
+  ((j.obj? "viewer").map ProfileViewer.ofJson).getD {}
+
 def Profile.ofJson (j : Json) : Option Profile := do
   let did ← j.str? "did"
   let handle ← j.str? "handle"
-  some { did, handle, displayName := j.str? "displayName", avatar := j.str? "avatar" }
+  some { did, handle, displayName := j.str? "displayName", avatar := j.str? "avatar",
+         viewer := ProfileViewer.of j }
 
 def aspectOf (j : Json) : Option (Nat × Nat) :=
   match j.obj? "aspectRatio" with
@@ -224,6 +290,18 @@ def Embed.ofJson (j : Json) : Embed :=
     | _, _ => .other t
   else .other t
 
+def PostReplyRef.ofJson (j : Json) : Option PostReplyRef := do
+  let root ← (j.obj? "root").bind StrongRef.ofJson
+  let parent ← (j.obj? "parent").bind StrongRef.ofJson
+  some { root, parent }
+
+/-- The `reply` of a post record (none when absent or malformed). -/
+def recordReply (j : Json) : Option PostReplyRef :=
+  ((j.obj? "record").bind (·.obj? "reply")).bind PostReplyRef.ofJson
+
+def PostViewer.ofJson (j : Json) : PostViewer :=
+  { like := j.str? "like", repost := j.str? "repost" }
+
 def Post.ofJson (j : Json) : Option Post := do
   let uri ← j.str? "uri"
   let cid ← j.str? "cid"
@@ -233,7 +311,8 @@ def Post.ofJson (j : Json) : Option Post := do
   some { uri, cid, author, text, createdAt, embed := (j.obj? "embed").map Embed.ofJson,
          replyCount := (j.nat? "replyCount").getD 0, repostCount := (j.nat? "repostCount").getD 0,
          likeCount := (j.nat? "likeCount").getD 0, quoteCount := (j.nat? "quoteCount").getD 0,
-         indexedAt }
+         indexedAt, reply := recordReply j,
+         viewer := ((j.obj? "viewer").map PostViewer.ofJson).getD {} }
 
 def ReplyRef.ofJson (j : Json) : ReplyRef :=
   let t := j.type
@@ -266,9 +345,19 @@ def FeedPage.ofJson (j : Json) : Option FeedPage := do
 
 /-! ## Encoding -/
 
+def StrongRef.toJson (r : StrongRef) : Json := .obj [("uri", .str r.uri), ("cid", .str r.cid)]
+
+def ProfileViewer.toJson (v : ProfileViewer) : Json :=
+  .obj ([("muted", .bool v.muted), ("blockedBy", .bool v.blockedBy)] ++ opt "blocking" Json.str v.blocking
+    ++ opt "following" Json.str v.following ++ opt "followedBy" Json.str v.followedBy)
+
+/-- `some v` unless `v` is the default, which is written as no member at all (as a public view
+has none). -/
+def nonDefault {α : Type} [DecidableEq α] (d v : α) : Option α := if v = d then none else some v
+
 def Profile.toJson (p : Profile) : Json :=
   .obj ([("did", .str p.did), ("handle", .str p.handle)] ++ opt "displayName" Json.str p.displayName
-    ++ opt "avatar" Json.str p.avatar)
+    ++ opt "avatar" Json.str p.avatar ++ opt "viewer" ProfileViewer.toJson (nonDefault {} p.viewer))
 
 def aspectJson (a : Nat × Nat) : Json := .obj [("width", Json.ofNat a.1), ("height", Json.ofNat a.2)]
 
@@ -313,14 +402,21 @@ def Embed.toJson : Embed → Json
       ("record", .obj [("record", q.toJson)]), ("media", m.toJson)]
   | .other t => .obj [("$type", .str t)]
 
+def PostReplyRef.toJson (r : PostReplyRef) : Json :=
+  .obj [("root", r.root.toJson), ("parent", r.parent.toJson)]
+
+def PostViewer.toJson (v : PostViewer) : Json :=
+  .obj (opt "like" Json.str v.like ++ opt "repost" Json.str v.repost)
+
 def Post.toJson (p : Post) : Json :=
   .obj ([("uri", .str p.uri), ("cid", .str p.cid), ("author", p.author.toJson),
-    ("record", .obj [("$type", .str tPostRecord), ("text", .str p.text),
-      ("createdAt", .str p.createdAt)])]
+    ("record", .obj ([("$type", .str tPostRecord), ("text", .str p.text),
+      ("createdAt", .str p.createdAt)] ++ opt "reply" PostReplyRef.toJson p.reply))]
     ++ opt "embed" Embed.toJson p.embed
     ++ [("replyCount", Json.ofNat p.replyCount), ("repostCount", Json.ofNat p.repostCount),
         ("likeCount", Json.ofNat p.likeCount), ("quoteCount", Json.ofNat p.quoteCount),
-        ("indexedAt", .str p.indexedAt)])
+        ("indexedAt", .str p.indexedAt)]
+    ++ opt "viewer" PostViewer.toJson (nonDefault {} p.viewer))
 
 def ReplyRef.toJson : ReplyRef → Json
   | .post p =>
@@ -346,10 +442,32 @@ def FeedItem.toJson (i : FeedItem) : Json :=
 def FeedPage.toJson (p : FeedPage) : Json :=
   .obj ([("feed", .arr (p.feed.map FeedItem.toJson))] ++ opt "cursor" Json.str p.cursor)
 
+/-! ## `getPosts` -/
+
+/-- `app.bsky.feed.getPosts`'s answer: views of the posts asked for that the AppView has (a
+deleted post is left out), with the viewer's state and counts. -/
+structure Posts where
+  posts : List Post
+deriving Repr, DecidableEq, Inhabited
+
+def Posts.ofJson (j : Json) : Option Posts := do
+  let posts ← (j.arr? "posts").bind (optMap Post.ofJson)
+  some { posts }
+
+def Posts.toJson (p : Posts) : Json := .obj [("posts", .arr (p.posts.map Post.toJson))]
+
+/-- How many URIs one `getPosts` takes. -/
+def maxGetPosts : Nat := 25
+
 /-! ## Requests -/
 
 def nsidGetTimeline : String := "app.bsky.feed.getTimeline"
 def nsidGetAuthorFeed : String := "app.bsky.feed.getAuthorFeed"
+def nsidGetPosts : String := "app.bsky.feed.getPosts"
+
+/-- `getPosts`'s parameters: `uris=…` once per URI, the first `maxGetPosts` (25) of them. -/
+def getPostsParams (uris : List String) : List (String × String) :=
+  (uris.take maxGetPosts).map ("uris", ·)
 
 /-- `limit` and `cursor` parameters. -/
 def pageParams (limit : Option Nat) (cursor : Option String) : List (String × String) :=

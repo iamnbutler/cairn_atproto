@@ -169,4 +169,18 @@ def csBare : Cairn.Request :=
 #guard match ((replies cfg ({} : Hooks Unit)) () 0 (.loadImage (cfg.service ++ "/img/40x30/x.png") false)).map
   (fun g => g.run' (Cairn.Fuzz.Rng.ofSeed 0)) with | some (Cairn.Reply.image 40 30) => true | _ => false
 
+-- Replies (cairn#236): some posts reply to an older post, a deleted one or a blocked one; the
+-- record's reply names the same parent the view does, and a reply's parent is older.
+def kinds (k : Nat) : String :=
+  match (postAt cfg k).reply with
+  | some r => match r.parent with
+    | .post _ => "post" | .notFound _ => "notFound" | .blocked _ => "blocked" | .other _ => "other"
+  | none => "none"
+#guard ["none", "post", "notFound", "blocked"].all fun x => (List.range 200).any (kinds · == x)
+#guard (List.range 200).all fun k => (postAt cfg k).reply.isSome == (postAt cfg k).post.reply.isSome
+#guard (List.range 200).all fun k => match replyTarget cfg k with
+  | some (.post j) => j < k && (postAt cfg k).post.reply.map (·.parent.uri) == some (postUri cfg j)
+  | _ => true
+#guard (List.range 100).all fun k => FeedItem.ofJson (postAt cfg k).toJson == some (postAt cfg k)
+
 end FakeTests

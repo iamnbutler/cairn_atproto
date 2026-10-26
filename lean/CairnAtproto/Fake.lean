@@ -12,7 +12,8 @@ tested (cairn#208). The same behaviour runs over HTTP in `tools/fake-pds/` (Bun)
 
 * **The timeline** only grows at its head. Post `k` (from the oldest, `0`) is a pure function of
   the seed and `k` (`postAt`), so a post never changes once it is there, and between requests new
-  ones arrive at the head at random (`arrivals`), or when asked (`Control.post`).
+  ones arrive at the head at random (`arrivals`), or when asked (`Control.post`). Some posts are
+  replies, to an older post or to a deleted or blocked one (`replyTarget`, cairn#236).
 * **`getTimeline`** pages from the head by an opaque cursor: a page of `limit` posts, newest
   first, and the cursor of its oldest post when there are older ones (none at the end). A
   cursor stays valid however many posts arrive after it.
@@ -107,25 +108,8 @@ def arrivedBefore (c : Config) (n : Nat) : Nat := ((List.range n).map (arrivals 
 /-- 2026-10-01T00:00:00Z, in milliseconds: post `0`'s minute. -/
 def epoch : Nat := 1790812800000
 
-/-- Year, month and day of a day number counted from 1970-01-01 (Hinnant's `civil_from_days`). -/
-def civil (days : Nat) : Nat × Nat × Nat :=
-  let z := days + 719468
-  let era := z / 146097
-  let doe := z - era * 146097
-  let yoe := (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
-  let doy := doe - (365 * yoe + yoe / 4 - yoe / 100)
-  let mp := (5 * doy + 2) / 153
-  let d := doy - (153 * mp + 2) / 5 + 1
-  let m := if mp < 10 then mp + 3 else mp - 9
-  (yoe + era * 400 + (if m ≤ 2 then 1 else 0), m, d)
-
-/-- UTC milliseconds since the epoch as `YYYY-MM-DDTHH:MM:SS.mmmZ` (JavaScript's
-`toISOString`). -/
-def iso (ms : Nat) : String :=
-  let (y, mo, d) := civil (ms / 86400000)
-  let r := ms % 86400000
-  let p (w n : Nat) := padLeft w '0' (toString n)
-  s!"{p 4 y}-{p 2 mo}-{p 2 d}T{p 2 (r / 3600000)}:{p 2 (r / 60000 % 60)}:{p 2 (r / 1000 % 60)}.{p 3 (r % 1000)}Z"
+/-- UTC milliseconds since the epoch as `YYYY-MM-DDTHH:MM:SS.mmmZ` (`formatDatetime`). -/
+def iso (ms : Nat) : String := formatDatetime ms
 
 /-! ## The timeline -/
 
@@ -172,13 +156,93 @@ def embedOf (c : Config) (k : Nat) : Option Embed :=
     some (.external e)
   | _ => none
 
+/-! ### Replies (cairn#236)
+
+One post in four (never post `0`) is a reply. Its parent is an older post `j < k` (six times in
+eight), a deleted post (`notFoundPost`) or a post by an account that blocks the tester
+(`blockedPost`). Its thread's root is found by following parents down: the oldest post of the
+chain, or the deleted or blocked post the chain reaches. The post's record carries `reply`
+(root and parent by URI and CID); its feed item carries the views (`ReplyCtx`), with the
+grandparent's author when the parent is itself a reply to a post. -/
+
+/-- What a reply's parent (or root) is. -/
+inductive Parent where
+  /-- Post `j` of the timeline. -/
+  | post (j : Nat)
+  /-- A deleted post. -/
+  | notFound
+  /-- A post by an account that blocks the tester. -/
+  | blocked
+deriving Repr, DecidableEq, Inhabited
+
+/-- What post `k` replies to, if it is a reply. -/
+def replyTarget (c : Config) (k : Nat) : Option Parent :=
+  if k = 0 then none
+  else if pick c.seed 16 k 4 = 0 then
+    match pick c.seed 18 k 8 with
+    | 0 => some .notFound
+    | 1 => some .blocked
+    | _ => some (.post (pick c.seed 17 k k))
+  else none
+
+/-- The root of the thread post `j` is in, following parents down at most `fuel` steps (parents
+are older, so `j` steps reach it). -/
+def rootFrom (c : Config) : Nat → Nat → Parent
+  | 0, j => .post j
+  | n + 1, j =>
+    match replyTarget c j with
+    | some (.post i) => rootFrom c n i
+    | some p => p
+    | none => .post j
+
+/-- The root of post `k`'s thread, when it is a reply. -/
+def threadRoot (c : Config) (k : Nat) : Parent :=
+  match replyTarget c k with
+  | some (.post j) => rootFrom c j j
+  | some p => p
+  | none => .post k
+
+def goneUri (k : Nat) : String := s!"at://did:plc:fakeauthorgone/app.bsky.feed.post/3fkgone{padLeft 8 '0' (toString k)}"
+def goneCid (c : Config) (k : Nat) : String := "bafyreigone" ++ hex16 (hash c.seed 19 k)
+def blockedUri (k : Nat) : String := s!"at://did:plc:fakeauthorblocker/app.bsky.feed.post/3fkblock{padLeft 8 '0' (toString k)}"
+def blockedCid (c : Config) (k : Nat) : String := "bafyreiblock" ++ hex16 (hash c.seed 21 k)
+
+/-- A parent (or root) of post `k`, by URI and CID, as a record's `reply` names it. -/
+def parentRef (c : Config) (k : Nat) : Parent → StrongRef
+  | .post j => ⟨postUri c j, postCid c j⟩
+  | .notFound => ⟨goneUri k, goneCid c k⟩
+  | .blocked => ⟨blockedUri k, blockedCid c k⟩
+
+/-- Post `k`'s view, with its record's `reply` when it is one: a function of the seed and `k`. -/
+def postView (c : Config) (k : Nat) : Post :=
+  let at_ := iso (createdMs c k)
+  { uri := postUri c k, cid := postCid c k, author := author c (authorOf c k),
+    text := textOf c k, createdAt := at_, embed := embedOf c k,
+    replyCount := pick c.seed 6 k 5, repostCount := pick c.seed 7 k 20,
+    likeCount := pick c.seed 8 k 100, quoteCount := pick c.seed 9 k 3, indexedAt := at_,
+    reply := (replyTarget c k).map fun p =>
+      { root := parentRef c k (threadRoot c k), parent := parentRef c k p } }
+
+/-- A parent or root as a feed item's reply context shows it. -/
+def parentView (c : Config) (k : Nat) : Parent → ReplyRef
+  | .post j => .post (postView c j)
+  | .notFound => .notFound (goneUri k)
+  | .blocked => .blocked (blockedUri k)
+
+/-- Post `k`'s reply context: the views of its root and parent, and the grandparent's author. -/
+def replyCtx (c : Config) (k : Nat) : Option ReplyCtx :=
+  (replyTarget c k).map fun p =>
+    { root := parentView c k (threadRoot c k), parent := parentView c k p,
+      grandparentAuthor := match p with
+        | .post j => match replyTarget c j with
+          | some (.post i) => some (author c (authorOf c i))
+          | _ => none
+        | _ => none }
+
 /-- Post `k`, counted from the oldest: a function of the seed and `k` only. -/
 def postAt (c : Config) (k : Nat) : FeedItem :=
   let at_ := iso (createdMs c k)
-  { post := { uri := postUri c k, cid := postCid c k, author := author c (authorOf c k),
-              text := textOf c k, createdAt := at_, embed := embedOf c k,
-              replyCount := pick c.seed 6 k 5, repostCount := pick c.seed 7 k 20,
-              likeCount := pick c.seed 8 k 100, quoteCount := pick c.seed 9 k 3, indexedAt := at_ },
+  { post := postView c k, reply := replyCtx c k,
     reason := if pick c.seed 14 k 8 = 0
       then some (.repost (author c (pick c.seed 15 k authorNames.length)) at_) else none }
 

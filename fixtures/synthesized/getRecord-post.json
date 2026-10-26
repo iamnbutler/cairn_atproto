@@ -1,0 +1,9 @@
+{
+ "uri": "at://did:plc:tester0000000000000000000/app.bsky.feed.post/3m2mine1aaaaa",
+ "cid": "bafyreimine1",
+ "value": {
+  "$type": "app.bsky.feed.post",
+  "text": "mine",
+  "createdAt": "2026-10-01T00:00:00.000Z"
+ }
+}

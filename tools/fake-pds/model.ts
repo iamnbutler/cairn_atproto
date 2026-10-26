@@ -117,18 +117,86 @@ function embedOf(c: Config, k: number): object | undefined {
   return undefined;
 }
 
-/** Post `k`, counted from the oldest, as `FeedItem.toJson` writes it. */
-export function postAt(c: Config, k: number): object {
+// Replies (cairn#236): replyTarget, rootFrom, threadRoot, postView and replyCtx in Fake.lean.
+
+type Parent = { post: number } | "notFound" | "blocked";
+
+export function replyTarget(c: Config, k: number): Parent | undefined {
+  if (k === 0 || pick(c.seed, 16, k, 4) !== 0) return undefined;
+  const r = pick(c.seed, 18, k, 8);
+  if (r === 0) return "notFound";
+  if (r === 1) return "blocked";
+  return { post: pick(c.seed, 17, k, k) };
+}
+
+function rootFrom(c: Config, fuel: number, j: number): Parent {
+  for (let n = fuel; n > 0; n--) {
+    const t = replyTarget(c, j);
+    if (t === undefined) return { post: j };
+    if (typeof t === "string") return t;
+    j = t.post;
+  }
+  return { post: j };
+}
+
+function threadRoot(c: Config, k: number): Parent {
+  const t = replyTarget(c, k);
+  if (t === undefined) return { post: k };
+  if (typeof t === "string") return t;
+  return rootFrom(c, t.post, t.post);
+}
+
+const goneUri = (k: number) => `at://did:plc:fakeauthorgone/app.bsky.feed.post/3fkgone${pad(8, String(k))}`;
+const goneCid = (c: Config, k: number) => "bafyreigone" + hex16(hash(c.seed, 19, k));
+const blockedUri = (k: number) => `at://did:plc:fakeauthorblocker/app.bsky.feed.post/3fkblock${pad(8, String(k))}`;
+const blockedCid = (c: Config, k: number) => "bafyreiblock" + hex16(hash(c.seed, 21, k));
+
+function parentRef(c: Config, k: number, p: Parent) {
+  if (p === "notFound") return { uri: goneUri(k), cid: goneCid(c, k) };
+  if (p === "blocked") return { uri: blockedUri(k), cid: blockedCid(c, k) };
+  return { uri: postUri(c, p.post), cid: postCid(c, p.post) };
+}
+
+/** Post `k`'s view, as `Post.toJson` writes it. */
+export function postView(c: Config, k: number): Record<string, unknown> {
   const at = iso(createdMs(c, k));
+  const record: Record<string, unknown> = { $type: "app.bsky.feed.post", text: textOf(c, k), createdAt: at };
+  const t = replyTarget(c, k);
+  if (t !== undefined) record.reply = { root: parentRef(c, k, threadRoot(c, k)), parent: parentRef(c, k, t) };
   const post: Record<string, unknown> = {
-    uri: postUri(c, k), cid: postCid(c, k), author: author(c, authorOf(c, k)),
-    record: { $type: "app.bsky.feed.post", text: textOf(c, k), createdAt: at },
+    uri: postUri(c, k), cid: postCid(c, k), author: author(c, authorOf(c, k)), record,
   };
   const embed = embedOf(c, k);
   if (embed) post.embed = embed;
   Object.assign(post, { replyCount: pick(c.seed, 6, k, 5), repostCount: pick(c.seed, 7, k, 20),
     likeCount: pick(c.seed, 8, k, 100), quoteCount: pick(c.seed, 9, k, 3), indexedAt: at });
-  const item: Record<string, unknown> = { post };
+  return post;
+}
+
+/** A parent or root as `ReplyRef.toJson` writes it. */
+function parentView(c: Config, k: number, p: Parent): object {
+  if (p === "notFound") return { $type: "app.bsky.feed.defs#notFoundPost", uri: goneUri(k), notFound: true };
+  if (p === "blocked") return { $type: "app.bsky.feed.defs#blockedPost", uri: blockedUri(k), blocked: true };
+  return { $type: "app.bsky.feed.defs#postView", ...postView(c, p.post) };
+}
+
+function replyCtx(c: Config, k: number): object | undefined {
+  const t = replyTarget(c, k);
+  if (t === undefined) return undefined;
+  const ctx: Record<string, unknown> = { root: parentView(c, k, threadRoot(c, k)), parent: parentView(c, k, t) };
+  if (typeof t !== "string") {
+    const g = replyTarget(c, t.post);
+    if (g !== undefined && typeof g !== "string") ctx.grandparentAuthor = author(c, authorOf(c, g.post));
+  }
+  return ctx;
+}
+
+/** Post `k`, counted from the oldest, as `FeedItem.toJson` writes it. */
+export function postAt(c: Config, k: number): object {
+  const at = iso(createdMs(c, k));
+  const item: Record<string, unknown> = { post: postView(c, k) };
+  const reply = replyCtx(c, k);
+  if (reply) item.reply = reply;
   if (pick(c.seed, 14, k, 8) === 0) {
     item.reason = { $type: "app.bsky.feed.defs#reasonRepost",
                     by: author(c, pick(c.seed, 15, k, AUTHORS.length)), indexedAt: at };

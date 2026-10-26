@@ -1,0 +1,50 @@
+{
+ "posts": [
+  {
+   "uri": "at://did:plc:alice000000000000000000/app.bsky.feed.post/3m2abc3aaaaa",
+   "cid": "bafyreisynth3",
+   "author": {
+    "did": "did:plc:alice000000000000000000",
+    "handle": "alice.example.com",
+    "displayName": "Alice",
+    "viewer": {
+     "muted": false,
+     "blockedBy": false,
+     "following": "at://did:plc:tester0000000000000000000/app.bsky.graph.follow/3m2fol1aaaaaa"
+    }
+   },
+   "record": {
+    "$type": "app.bsky.feed.post",
+    "text": "post 3",
+    "createdAt": "2026-10-03T12:00:00.000Z"
+   },
+   "replyCount": 0,
+   "repostCount": 1,
+   "likeCount": 2,
+   "quoteCount": 0,
+   "indexedAt": "2026-10-03T12:00:01.000Z",
+   "viewer": {
+    "like": "at://did:plc:tester0000000000000000000/app.bsky.feed.like/3m2like1aaaaa"
+   }
+  },
+  {
+   "uri": "at://did:plc:alice000000000000000000/app.bsky.feed.post/3m2abc1aaaaa",
+   "cid": "bafyreisynth1",
+   "author": {
+    "did": "did:plc:alice000000000000000000",
+    "handle": "alice.example.com",
+    "displayName": "Alice"
+   },
+   "record": {
+    "$type": "app.bsky.feed.post",
+    "text": "post 1",
+    "createdAt": "2026-10-01T12:00:00.000Z"
+   },
+   "replyCount": 0,
+   "repostCount": 1,
+   "likeCount": 2,
+   "quoteCount": 0,
+   "indexedAt": "2026-10-01T12:00:01.000Z"
+  }
+ ]
+}

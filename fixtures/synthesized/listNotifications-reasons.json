@@ -1,0 +1,148 @@
+{
+ "notifications": [
+  {
+   "uri": "at://did:plc:alice000000000000000000/app.bsky.graph.starterpack/3m2n7aaaaaaaa",
+   "cid": "bafyreinotif7",
+   "author": {
+    "did": "did:plc:alice000000000000000000",
+    "handle": "alice.example.com",
+    "displayName": "Alice"
+   },
+   "reason": "starterpack-joined",
+   "record": {
+    "$type": "app.bsky.graph.starterpack",
+    "createdAt": "2026-10-17T08:00:00.000Z"
+   },
+   "isRead": false,
+   "indexedAt": "2026-10-17T08:00:01.000Z",
+   "labels": []
+  },
+  {
+   "uri": "at://did:plc:alice000000000000000000/app.bsky.feed.post/3m2n6aaaaaaaa",
+   "cid": "bafyreinotif6",
+   "author": {
+    "did": "did:plc:alice000000000000000000",
+    "handle": "alice.example.com",
+    "displayName": "Alice"
+   },
+   "reason": "quote",
+   "record": {
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2026-10-16T08:00:00.000Z",
+    "text": "quoting you"
+   },
+   "isRead": false,
+   "indexedAt": "2026-10-16T08:00:01.000Z",
+   "labels": []
+  },
+  {
+   "uri": "at://did:plc:bob00000000000000000000/app.bsky.feed.post/3m2n5aaaaaaaa",
+   "cid": "bafyreinotif5",
+   "author": {
+    "did": "did:plc:bob00000000000000000000",
+    "handle": "bob.example.com",
+    "viewer": {
+     "muted": true,
+     "blockedBy": false,
+     "followedBy": "at://did:plc:bob00000000000000000000/app.bsky.graph.follow/3m2fol2aaaaaa"
+    }
+   },
+   "reason": "reply",
+   "record": {
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2026-10-15T08:00:00.000Z",
+    "text": "replying to you"
+   },
+   "isRead": false,
+   "indexedAt": "2026-10-15T08:00:01.000Z",
+   "labels": []
+  },
+  {
+   "uri": "at://did:plc:alice000000000000000000/app.bsky.feed.post/3m2n4aaaaaaaa",
+   "cid": "bafyreinotif4",
+   "author": {
+    "did": "did:plc:alice000000000000000000",
+    "handle": "alice.example.com",
+    "displayName": "Alice"
+   },
+   "reason": "mention",
+   "record": {
+    "$type": "app.bsky.feed.post",
+    "createdAt": "2026-10-14T08:00:00.000Z",
+    "text": "hi @tester"
+   },
+   "isRead": false,
+   "indexedAt": "2026-10-14T08:00:01.000Z",
+   "labels": []
+  },
+  {
+   "uri": "at://did:plc:bob00000000000000000000/app.bsky.graph.follow/3m2n3aaaaaaaa",
+   "cid": "bafyreinotif3",
+   "author": {
+    "did": "did:plc:bob00000000000000000000",
+    "handle": "bob.example.com"
+   },
+   "reason": "follow",
+   "record": {
+    "$type": "app.bsky.graph.follow",
+    "createdAt": "2026-10-13T08:00:00.000Z",
+    "subject": "did:plc:tester0000000000000000000"
+   },
+   "isRead": true,
+   "indexedAt": "2026-10-13T08:00:01.000Z",
+   "labels": []
+  },
+  {
+   "uri": "at://did:plc:alice000000000000000000/app.bsky.feed.repost/3m2n2aaaaaaaa",
+   "cid": "bafyreinotif2",
+   "author": {
+    "did": "did:plc:alice000000000000000000",
+    "handle": "alice.example.com",
+    "displayName": "Alice",
+    "viewer": {
+     "muted": false,
+     "blockedBy": false,
+     "following": "at://did:plc:tester0000000000000000000/app.bsky.graph.follow/3m2fol1aaaaaa"
+    }
+   },
+   "reason": "repost",
+   "reasonSubject": "at://did:plc:tester0000000000000000000/app.bsky.feed.post/3m2mine1aaaaa",
+   "record": {
+    "$type": "app.bsky.feed.repost",
+    "createdAt": "2026-10-12T08:00:00.000Z",
+    "subject": {
+     "uri": "at://did:plc:tester0000000000000000000/app.bsky.feed.post/3m2mine1aaaaa",
+     "cid": "bafyreimine1"
+    }
+   },
+   "isRead": true,
+   "indexedAt": "2026-10-12T08:00:01.000Z",
+   "labels": []
+  },
+  {
+   "uri": "at://did:plc:alice000000000000000000/app.bsky.feed.like/3m2n1aaaaaaaa",
+   "cid": "bafyreinotif1",
+   "author": {
+    "did": "did:plc:alice000000000000000000",
+    "handle": "alice.example.com",
+    "displayName": "Alice"
+   },
+   "reason": "like",
+   "reasonSubject": "at://did:plc:tester0000000000000000000/app.bsky.feed.post/3m2mine1aaaaa",
+   "record": {
+    "$type": "app.bsky.feed.like",
+    "createdAt": "2026-10-11T08:00:00.000Z",
+    "subject": {
+     "uri": "at://did:plc:tester0000000000000000000/app.bsky.feed.post/3m2mine1aaaaa",
+     "cid": "bafyreimine1"
+    }
+   },
+   "isRead": true,
+   "indexedAt": "2026-10-11T08:00:01.000Z",
+   "labels": []
+  }
+ ],
+ "cursor": "2026-10-11T08:00:01.000Z",
+ "seenAt": "2026-10-13T00:00:00.000Z",
+ "priority": false
+}

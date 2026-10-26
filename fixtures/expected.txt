@@ -1,4 +1,5 @@
 ok fixtures/public/error-getAuthorFeed-invalid-actor.json error InvalidRequest
+ok fixtures/public/error-getProfile-not-found.json error InvalidRequest
 ok fixtures/public/getAuthorFeed-bsky.app-page2.json feed 49
 embed images:1
 reason repost
@@ -16,107 +17,141 @@ embed none
 reason repost
 embed images:1
 reason repost
+record reply
 embed none
 reason none
 reply post
+record reply
 embed external
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
 reason none
 reply post
+record reply
 embed record:post
+reason none
+reply post
+record reply
+embed none
+reason none
+reply post
+record reply
+embed record:post
+reason none
+reply post
+record reply
+embed record:post
+reason none
+reply post
+record reply
+embed record:post
+reason none
+reply post
+record reply
+embed record:post
+reason none
+reply post
+record reply
+embed record:post
+reason none
+reply post
+record reply
+embed record:post
+reason none
+reply post
+record reply
+embed record:post
+reason none
+reply post
+record reply
+embed record:post
+reason none
+reply post
+record reply
+embed none
 reason none
 reply post
 embed none
 reason none
-reply post
-embed record:post
-reason none
-reply post
-embed record:post
-reason none
-reply post
-embed record:post
-reason none
-reply post
-embed record:post
-reason none
-reply post
-embed record:post
-reason none
-reply post
-embed record:post
-reason none
-reply post
-embed record:post
-reason none
-reply post
-embed record:post
-reason none
-reply post
-embed none
-reason none
-reply post
-embed none
-reason none
+record reply
 embed none
 reason none
 reply post
@@ -124,11 +159,13 @@ embed images:1
 reason none
 embed other:app.bsky.embed.video#view
 reason repost
+record reply
 embed none
 reason none
 reply post
 embed record:post
 reason none
+record reply
 embed images:1
 reason none
 reply post
@@ -140,6 +177,7 @@ embed images:1
 reason repost
 embed none
 reason repost
+record reply
 embed none
 reason none
 reply post
@@ -147,28 +185,35 @@ embed other:app.bsky.embed.video#view
 reason repost
 embed record:post
 reason repost
+record reply
 embed none
 reason none
 reply post
 embed images:1
 reason repost
+record reply
 embed none
 reason none
 reply post
+record reply
 embed none
 reason none
 reply post
+record reply
 embed none
 reason none
 reply post
+record reply
 embed none
 reason none
 reply post
 embed other:app.bsky.embed.video#view
 reason none
+record reply
 embed none
 reason none
 reply post
+record reply
 embed external
 reason none
 reply post
@@ -178,9 +223,11 @@ embed none
 reason repost
 embed none
 reason repost
+record reply
 embed external
 reason none
 reply notFound
+record reply
 embed none
 reason none
 reply post
@@ -188,11 +235,13 @@ embed record:post
 reason none
 embed record:post
 reason none
+record reply
 embed none
 reason none
 reply post
 embed images:1
 reason repost
+record reply
 embed none
 reason none
 reply post
@@ -206,6 +255,7 @@ embed record:post
 reason none
 embed images:4
 reason repost
+record reply
 embed none
 reason none
 reply post
@@ -215,17 +265,21 @@ embed external
 reason repost
 embed external
 reason repost
+record reply
 embed record:post
 reason none
 reply post
 embed record:post
 reason none
+record reply
 embed none
 reason none
 reply post
+record reply
 embed none
 reason none
 reply post
+record reply
 embed none
 reason none
 reply post
@@ -235,9 +289,11 @@ embed none
 reason repost
 embed images:4
 reason repost
+record reply
 embed none
 reason none
 reply post
+record reply
 embed none
 reason none
 reply post
@@ -254,10 +310,31 @@ reason repost
 embed record:post
 reason none
 encode fixtures/public/getAuthorFeed-bsky.app.json ok
+ok fixtures/public/getPosts-bsky.app.json posts 3
+record reply
+record reply
+encode fixtures/public/getPosts-bsky.app.json ok
+ok fixtures/public/getProfile-bsky.app.json profile bsky.app posts=896
+encode fixtures/public/getProfile-bsky.app.json ok
 ok fixtures/synthesized/error-AuthRequired.json error AuthRequired
 ok fixtures/synthesized/error-ExpiredToken.json error ExpiredToken
+ok fixtures/synthesized/error-InvalidSwap.json error InvalidSwap
 ok fixtures/synthesized/error-InvalidToken.json error InvalidToken
 ok fixtures/synthesized/error-RateLimitExceeded.json error RateLimitExceeded
+ok fixtures/synthesized/error-RecordNotFound.json error RecordNotFound
+ok fixtures/synthesized/getPosts-viewer.json posts 2
+viewer post like=true repost=false
+viewer author muted=false blockedBy=false blocking=false following=true followedBy=false
+encode fixtures/synthesized/getPosts-viewer.json ok
+ok fixtures/synthesized/getProfile-viewer.json profile bob.example.com posts=40
+viewer profile muted=true blockedBy=false blocking=true following=true followedBy=false
+encode fixtures/synthesized/getProfile-viewer.json ok
+ok fixtures/synthesized/getRecord-follow.json record follow uri=true
+encode fixtures/synthesized/getRecord-follow.json ok
+ok fixtures/synthesized/getRecord-like.json record like uri=true
+encode fixtures/synthesized/getRecord-like.json ok
+ok fixtures/synthesized/getRecord-post.json record other:app.bsky.feed.post uri=true
+encode fixtures/synthesized/getRecord-post.json ok
 ok fixtures/synthesized/getTimeline-embeds.json feed 20
 embed images:4
 reason none
@@ -305,6 +382,89 @@ reply other:app.bsky.feed.defs#somethingNew
 encode fixtures/synthesized/getTimeline-embeds.json ok
 ok fixtures/synthesized/getTimeline-end.json feed 0
 encode fixtures/synthesized/getTimeline-end.json ok
+ok fixtures/synthesized/getTimeline-replies.json feed 20
+record reply
+embed images:4
+reason none
+reply blocked
+record reply
+embed none
+reason none
+reply post
+record reply
+embed images:4
+reason none
+reply notFound
+embed none
+reason none
+embed external
+reason none
+record reply
+embed none
+reason none
+reply post
+embed none
+reason repost
+record reply
+embed images:4
+reason none
+reply post
+embed external
+reason none
+embed images:3
+reason none
+embed images:1
+reason none
+embed none
+reason none
+embed none
+reason none
+embed none
+reason none
+embed external
+reason none
+record reply
+embed none
+reason none
+reply notFound
+embed none
+reason none
+embed none
+reason none
+record reply
+embed images:4
+reason none
+reply post
+embed none
+reason none
+encode fixtures/synthesized/getTimeline-replies.json ok
+ok fixtures/synthesized/getTimeline-viewer.json feed 3
+viewer post like=true repost=true
+viewer author muted=false blockedBy=false blocking=false following=true followedBy=false
+embed none
+reason none
+viewer post like=true repost=false
+viewer author muted=true blockedBy=false blocking=false following=false followedBy=true
+embed none
+reason none
+embed none
+reason none
+encode fixtures/synthesized/getTimeline-viewer.json ok
+ok fixtures/synthesized/getUnreadCount.json unread 4
+ok fixtures/synthesized/listNotifications-end.json notifications 0 cursor=false seenAt=false
+encode fixtures/synthesized/listNotifications-end.json ok
+ok fixtures/synthesized/listNotifications-reasons.json notifications 7 cursor=true seenAt=true
+notification starterpack-joined unread text=n subject=n
+notification quote unread text=y subject=n
+notification reply unread text=y subject=n
+viewer author muted=true blockedBy=false blocking=false following=false followedBy=true
+notification mention unread text=y subject=n
+notification follow read text=n subject=n
+notification repost read text=n subject=y
+viewer author muted=false blockedBy=false blocking=false following=true followedBy=false
+notification like read text=n subject=y
+encode fixtures/synthesized/listNotifications-reasons.json ok
+ok fixtures/synthesized/putRecord-reply.json written uri=true
 ok fixtures/synthesized/session-createSession.json session alice.example.com pds=https://pds.example.com
 encode fixtures/synthesized/session-createSession.json ok
 ok fixtures/synthesized/session-getSession.json session carol.example.com pds=-
